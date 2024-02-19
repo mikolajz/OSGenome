@@ -1,7 +1,7 @@
 
 import sys
+from pathlib import Path
 
-    
 from bs4 import BeautifulSoup
 from random import shuffle
 
@@ -19,6 +19,7 @@ from tkinter import *
 
 from SNPGen import GrabSNPs
 from GenomeImporter import PersonalData, Approved
+from utils import get_default_data_dir
 
 
 class SNPCrawl:
@@ -218,11 +219,12 @@ last_save.close()
 
 
 
-
+data_dir = get_default_data_dir()
 if filepath:
-    rsids_on_snpedia = Approved()
-    personal = PersonalData(filepath, rsids_on_snpedia)
-    snpsofinterest = [snp for snp in personal.snps if personal.hasGenotype(snp)]
+    rsids_on_snpedia = Approved(data_dir=data_dir)
+    personal = PersonalData.from_input_file(Path(filepath), rsids_on_snpedia)
+    personal.export(data_dir)  # Prepare cache for the webapp.
+    snpsofinterest = [snp for snp in personal.snps if personal.has_genotype(snp)]
     count_of_interest = len(snpsofinterest)
     print("Found " + str(count_of_interest) + " SNPS to be mapped to SNPedia")
     sp = GrabSNPs(crawllimit=60, snpsofinterest=snpsofinterest, target=100)

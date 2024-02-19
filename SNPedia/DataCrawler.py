@@ -1,7 +1,8 @@
 import logging
 import re
 import sys
-from typing import Optional, Sequence
+from pathlib import Path
+from typing import Optional, Sequence, Any, Dict
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,7 +14,7 @@ import os
 import random
 
 from GenomeImporter import PersonalData, Approved
-
+from utils import get_default_data_dir
 
 COMPLEMENTS = {
     "A": "T",
@@ -26,27 +27,21 @@ VARIANT_REGEXP = re.compile(r'\(([ACTG-]);([ACTG-])\)')
 
 
 class SNPCrawl:
-    def __init__(self, filepath=None, snppath=None):
-        if filepath and os.path.isfile(filepath):
-            self.importDict(filepath)
+    def __init__(self, data_dir: Path, snppath=None) -> None:
+        self._data_dir = data_dir
+        self._rsid_list_path = data_dir / "rsidDict.json"
+        if self._rsid_list_path.exists():
+            self.rsidDict = self.import_dict(self._rsid_list_path)
             self.rsidList = []
         else:
             self.rsidDict = {}
             self.rsidList = []
-
-        if snppath and os.path.isfile(snppath):
-            self.importSNPs(snppath)
-        else:
-            self.snpdict = {}
-
-        self.createList()
 
     def crawl(self, rsids: Sequence[str]) -> None:
         rsids = [item.lower() for item in rsids]
         if rsids:
             self.initcrawl(rsids)
         self.export()
-        self.createList()
 
     def initcrawl(self, rsids):
         count = 0
@@ -150,15 +145,15 @@ class SNPCrawl:
             logging.warning(f"Couldn't find {our_snp} in {variations} ({debug_rsid}, {stbl_orient})")
         return None
 
-    def createList(self):
+    def createList(self, personal_data: PersonalData) -> Sequence[dict[str, Any]]:
+        rsidList = []
         make = lambda rsname, description, variations, stbl_orientation, importance: \
             {"Name": rsname,
              "Description": description,
              "Importance": importance,
-             "Genotype": self.snpdict[rsname.lower()] \
-                if rsname.lower() in self.snpdict.keys() else "(-;-)", \
-             "Variations": str.join("<br>", variations), \
-                "StabilizedOrientation":stbl_orientation 
+             "Genotype": personal_data.get_genotype(rsname.lower()),
+             "Variations": str.join("<br>", variations),
+             "StabilizedOrientation":stbl_orientation
             }
 
         messaged_once = False
@@ -174,9 +169,9 @@ class SNPCrawl:
                     messaged_once = True
 
             variations_data = curdict["Variations"]
-            if rsid.lower() in self.snpdict.keys():
+            if personal_data.has_genotype(rsid):
                 variation_idx = self._chooseVariation(
-                    our_snp=self.snpdict[rsid.lower()],
+                    our_snp=personal_data.get_genotype(rsid),
                     variations=variations_data,
                     stbl_orient=stbl_orient,
                     debug_rsid=rsid.lower(),
@@ -196,19 +191,14 @@ class SNPCrawl:
 
             maker = make(rsid, curdict["Description"], variations, stbl_orient, importance)
             
-            self.rsidList.append(maker)
+            rsidList.append(maker)
 
+        return rsidList
 
-
-        #print(self.rsidList[:5])
-
-    def importDict(self, filepath):
-        with open(filepath, 'r') as jsonfile:
-            self.rsidDict = json.load(jsonfile)
-
-    def importSNPs(self, snppath):
-        with open(snppath, 'r') as jsonfile:
-            self.snpdict = json.load(jsonfile)
+    @staticmethod
+    def import_dict(filepath: Path) -> Dict[str, Any]:
+        with filepath.open("r") as jsonfile:
+            return json.load(jsonfile)
 
     def export(self):
         #data = pd.DataFrame(self.rsidDict)
@@ -216,12 +206,7 @@ class SNPCrawl:
         #data = data.transpose()
         #datapath = os.path.join(os.path.curdir, "data", 'rsidDict.csv')
         #data.to_csv(datapath)
-        if os.path.exists("SNPedia"):
-            joiner = os.path.join(os.path.curdir,"SNPedia")
-        else:
-            joiner = os.path.curdir
-        filepath = os.path.join(joiner, "data", 'rsidDict.json')
-        with open(filepath,"w") as jsonfile:
+        with self._rsid_list_path.open("w") as jsonfile:
             json.dump(self.rsidDict, jsonfile)
 
 
@@ -239,7 +224,7 @@ def find_relevant_rsids(
         crawl: SNPCrawl,
         count: int,
 ) -> Sequence[str]:
-    snps_of_interest = [snp for snp in personal.snps if personal.hasGenotype(snp)]
+    snps_of_interest = [snp for snp in personal.snps if personal.has_genotype(snp)]
     snps_to_grab = [snp for snp in snps_of_interest if snp not in crawl.rsidDict]
     print(f"Yet to load: {len(snps_to_grab)}/{len(snps_of_interest)} genome SNPs available in SNPedia")
     snps_to_grab_set = set(snps_to_grab)
@@ -263,24 +248,18 @@ def main():
     parser.add_argument('-n', '--count', help='Number of SNPs to download', type=int, default=100)
     args = parser.parse_args()
 
-    if os.path.exists("SNPedia"):
-        joiner = os.path.join(os.path.curdir,"SNPedia")
-    else:
-        joiner = os.path.curdir
-    filepath = os.path.join(joiner, "data", 'rsidDict.json')
-    if os.path.isfile(filepath):
-        dfCrawl = SNPCrawl(filepath=filepath)
-    else:
-        dfCrawl = SNPCrawl()
+    data_dir = get_default_data_dir()
+    df_crawl = SNPCrawl(data_dir=data_dir)
 
     if args.filepath:
-        rsids_on_snpedia = Approved()
-        personal = PersonalData(args.filepath, rsids_on_snpedia)
-        rsids = find_relevant_rsids(personal, dfCrawl, count=args.count)
+        rsids_on_snpedia = Approved(data_dir=data_dir)
+        personal = PersonalData.from_input_file(Path(args.filepath), rsids_on_snpedia)
+        personal.export(data_dir)  # Prepare cache for the webapp.
+        rsids = find_relevant_rsids(personal, df_crawl, count=args.count)
     else:
         rsids = SEED_RSIDS
 
-    dfCrawl.crawl(rsids)
+    df_crawl.crawl(rsids)
 
 
 if __name__ == "__main__":

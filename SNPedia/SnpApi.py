@@ -1,20 +1,19 @@
 from flask import Flask, render_template, request, send_file, send_from_directory, jsonify
 import base64
 from DataCrawler import SNPCrawl
-import os
 import io
+
+from GenomeImporter import PersonalData
+from utils import get_default_data_dir
 
 app = Flask(__name__, template_folder='templates')
 
+
 @app.route("/", methods=['GET', 'POST'])
-def main():
+def main_page():
     print(vars(request.form))
-    if os.path.exists("SNPedia"):
-        joiner = os.path.join(os.path.curdir,"SNPedia")
-    else:
-        joiner = os.path.curdir
-    filepath = os.path.join(joiner, "templates", 'snp_resource.html')
     return render_template('snp_resource.html')
+
 
 @app.route("/excel", methods=['GET', 'POST'])
 def create_file():
@@ -50,18 +49,15 @@ def send_css(path):
 
 @app.route("/api/rsids", methods=['GET'])
 def get_types():
-    return jsonify({"results":dfCrawl.rsidList})
+    return jsonify({"results": app.data_list})
+
+
+def main() -> None:
+    data_dir = get_default_data_dir()
+    personal_data = PersonalData.from_cache(data_dir)
+    app.data_list = SNPCrawl(data_dir=data_dir).createList(personal_data=personal_data)
+    app.run(debug=True)
+
 
 if __name__ == "__main__":
-    if os.path.exists("SNPedia"):
-        joiner = os.path.join(os.path.curdir,"SNPedia")
-    else:
-        joiner = os.path.curdir
-    filepath = os.path.join(joiner, "data", 'rsidDict.json')
-    snppath = os.path.join(joiner, "data", 'snpDict.json')
-    if os.path.isfile(filepath):
-        if os.path.isfile(snppath):
-            dfCrawl = SNPCrawl(filepath=filepath, snppath=snppath)
-        else:
-            dfCrawl = SNPCrawl(filepath=filepath)
-    app.run(debug=True)
+    main()
