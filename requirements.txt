@@ -4,4 +4,6 @@ Flask==2.3.2
 argparse==1.4.0
 jsonify==0.5
 requests>=2.20.0
-
+mypy==1.8.0
+types-beautifulsoup4
+types-requests

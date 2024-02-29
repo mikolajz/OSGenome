@@ -1,6 +1,7 @@
 
 import sys
 from pathlib import Path
+from typing import List, Dict, Any
 
 from bs4 import BeautifulSoup
 from random import shuffle
@@ -26,7 +27,7 @@ class SNPCrawl:
     def __init__(self, rsids=[], filepath=None, snppath=None):
         if filepath and os.path.isfile(filepath):
             self.importDict(filepath)
-            self.rsidList = []
+            self.rsidList: List[Dict[str, Any]] = []
         else:
             self.rsidDict = {}
             self.rsidList = []
@@ -75,7 +76,7 @@ class SNPCrawl:
                 
                 #Orientation Finder
                 orientation = bs.find("td", string="Rs_StabilizedOrientation")
-                if orientation:
+                if orientation is not None and orientation.parent is not None:
                     plus = orientation.parent.find("td",string="plus")
                     minus = orientation.parent.find("td",string="minus")
                     if plus:
@@ -84,7 +85,7 @@ class SNPCrawl:
                         self.rsidDict[rsid]["StabilizedOrientation"] = "minus" 
                 else:
                       link = bs.find("a",{"title":"StabilizedOrientation"})
-                      if link:
+                      if link is not None and link.parent is not None and link.parent.parent is not None:
                         table_row = link.parent.parent
                         plus = table_row.find("td",string="plus")
                         minus = table_row.find("td",string="minus")
@@ -200,11 +201,11 @@ else:
     last_path = "/"
 
 
-root.filename = filedialog.askopenfilename(initialdir = last_path,title = "Select file",filetypes = (("text files","*.txt"),("all files","*.*")))
+root.filename = filedialog.askopenfilename(initialdir = last_path,title = "Select file",filetypes = (("text files","*.txt"),("all files","*.*")))  # type: ignore[attr-defined]
 #print (root.filename)
 
 root.destroy()
-filepath = root.filename
+filepath = root.filename  # type: ignore[attr-defined]
 
 if os.path.exists("SNPedia"):
     joiner = os.path.join(os.path.curdir,"SNPedia")

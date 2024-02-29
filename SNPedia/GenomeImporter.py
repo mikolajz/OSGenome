@@ -16,7 +16,7 @@ from utils import get_default_data_dir
 class PersonalData:
     def __init__(self, snpdict: Mapping[str, str]) -> None:
         self.snpdict = snpdict
-        self.snps = snpdict.keys()
+        self.snps = list(snpdict.keys())
 
     @staticmethod
     def from_input_file(filepath: Path, approved: Approved) -> PersonalData:
@@ -73,7 +73,6 @@ class Approved:
 
     @staticmethod
     def _crawl(cmcontinue=None) -> List[str]:
-        members = []
         count = 0
         accepted = []
         print("Grabbing approved SNPs")
@@ -120,9 +119,9 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
 
     if args["filepath"]:
-        rsids_on_snpedia = Approved(data_dir=get_default_data_dir())
-        pd = PersonalData(filepath=args["filepath"], approved=rsids_on_snpedia)
-        print(len(pd.personaldata))
+        data_dir = get_default_data_dir()
+        rsids_on_snpedia = Approved(data_dir=data_dir)
+        pd = PersonalData.from_input_file(filepath=args["filepath"], approved=rsids_on_snpedia)
         print(pd.snps[:50])
         print(list(pd.snpdict.keys())[:10])
         print(list(pd.snpdict.values())[:10])

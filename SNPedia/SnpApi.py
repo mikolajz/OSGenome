@@ -20,15 +20,15 @@ def create_file():
     content = request.form
 
     filename = content['fileName']
-    filecontents = content['base64']
-    filecontents = base64.b64decode(filecontents)
+    file_contents = content['base64']
+    binary_contents = base64.b64decode(file_contents)
 
     bytesIO = io.BytesIO()
-    bytesIO.write(filecontents)
+    bytesIO.write(binary_contents)
     bytesIO.seek(0)
 
     return send_file(bytesIO,
-                     attachment_filename=filename,
+                     attachment_filename=filename,  # type: ignore[call-arg]
                      as_attachment=True)
 
 
@@ -49,13 +49,13 @@ def send_css(path):
 
 @app.route("/api/rsids", methods=['GET'])
 def get_types():
-    return jsonify({"results": app.data_list})
+    return jsonify({"results": app.data_list})  # type: ignore[attr-defined]
 
 
 def main() -> None:
     data_dir = get_default_data_dir()
     personal_data = PersonalData.from_cache(data_dir)
-    app.data_list = SNPCrawl(data_dir=data_dir).createList(personal_data=personal_data)
+    app.data_list = SNPCrawl(data_dir=data_dir).createList(personal_data=personal_data)  # type: ignore[attr-defined]
     app.run(debug=True)
 
 

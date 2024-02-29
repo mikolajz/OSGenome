@@ -32,10 +32,8 @@ class SNPCrawl:
         self._rsid_list_path = data_dir / "rsidDict.json"
         if self._rsid_list_path.exists():
             self.rsidDict = self.import_dict(self._rsid_list_path)
-            self.rsidList = []
         else:
             self.rsidDict = {}
-            self.rsidList = []
 
     def crawl(self, rsids: Sequence[str]) -> None:
         rsids = [item.lower() for item in rsids]
@@ -75,7 +73,7 @@ class SNPCrawl:
                 
                 #Orientation Finder
                 orientation = bs.find("td", string="Rs_StabilizedOrientation")
-                if orientation:
+                if orientation is not None and orientation.parent is not None:
                     plus = orientation.parent.find("td",string="plus")
                     minus = orientation.parent.find("td",string="minus")
                     if plus:
@@ -84,7 +82,7 @@ class SNPCrawl:
                         self.rsidDict[rsid]["StabilizedOrientation"] = "minus" 
                 else:
                       link = bs.find("a",{"title":"StabilizedOrientation"})
-                      if link:
+                      if link is not None and link.parent is not None and link.parent.parent is not None:
                         table_row = link.parent.parent
                         plus = table_row.find("td",string="plus")
                         minus = table_row.find("td",string="minus")
@@ -122,7 +120,7 @@ class SNPCrawl:
 
         comp1 = COMPLEMENTS.get(m.group(1))
         comp2 = COMPLEMENTS.get(m.group(2))
-        if comp1 > comp2:
+        if comp1 is not None and comp2 is not None and comp1 > comp2:
             # It seems there is a convention to put them in alphabetic order
             comp1, comp2 = comp2, comp1
         return f"({comp1};{comp2})"
