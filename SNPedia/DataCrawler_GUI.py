@@ -11,8 +11,8 @@ from utils import get_default_data_dir
 READ_COUNT = 200
 
 
-def get_filepath_using_gui() -> Path:
-    last_save_path = Path("lastsave.txt")  # TODO: save in data_dir?
+def get_filepath_using_gui(data_dir: Path) -> Path:
+    last_save_path = data_dir / "lastsave.txt"
 
     try:
         last_path = last_save_path.read_text()
@@ -36,7 +36,7 @@ def main():
     data_dir = get_default_data_dir()
     df_crawl = SNPCrawl(data_dir=data_dir)
 
-    file_path = get_filepath_using_gui()
+    file_path = get_filepath_using_gui(data_dir)
 
     rsids_on_snpedia = Approved(data_dir=data_dir)
     personal = PersonalData.from_input_file(file_path, rsids_on_snpedia)
