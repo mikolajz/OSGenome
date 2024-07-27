@@ -26,7 +26,7 @@ VARIANT_REGEXP = re.compile(r'\(([ACTG-]);([ACTG-])\)')
 
 
 class SNPCrawl:
-    def __init__(self, data_dir: Path, snppath=None) -> None:
+    def __init__(self, data_dir: Path) -> None:
         self._data_dir = data_dir
         self._rsid_list_path = data_dir / "rsidDict.json"
         if self._rsid_list_path.exists():

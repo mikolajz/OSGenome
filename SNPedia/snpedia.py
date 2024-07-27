@@ -32,6 +32,9 @@ class SnpediaWithCache:
         )
 
     def load_rsid(self, rsid: Rsid, session: requests.Session) -> Optional[bytes]:
+        if (cached_html := self.get_from_cache(rsid)) is not None:
+            return cached_html
+
         url = f"https://bots.snpedia.com/index.php/{rsid}"
 
         try:
@@ -53,6 +56,17 @@ class SnpediaWithCache:
         data_path, meta_path = self._data_and_meta_paths(rsid)
         data_path.write_bytes(html)
         meta_path.write_text(cache_metadata.to_json())
+
+        return html
+
+    def get_from_cache(self, rsid: Rsid) -> Optional[bytes]:
+        data_path, meta_path = self._data_and_meta_paths(rsid)
+        if not data_path.exists():
+            return None
+
+        html = data_path.read_bytes()
+        if not html:
+            return None
 
         return html
 
