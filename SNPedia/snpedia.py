@@ -58,9 +58,16 @@ class SnpediaWithCache:
 
 
 @dataclass(frozen=True)
+class GenotypeSummary(DataClassJsonMixin):
+    genotype_str: str
+    magnitude: Optional[float]
+    description: Optional[str]
+
+
+@dataclass(frozen=True)
 class SnpediaSnpInfo:
     description: Optional[str]
-    genotypes: Optional[list[list[str]]]
+    genotype_summaries: list[GenotypeSummary]
     stabilized_orientation: Optional[Orientation]
 
 
@@ -73,7 +80,7 @@ class SnpPage:
 
         return SnpediaSnpInfo(
             description=self._find_description(bs),
-            genotypes=self._find_genotypes(bs),
+            genotype_summaries=self._find_genotype_summaries(bs),
             stabilized_orientation=self._find_stable_orientation(bs),
         )
 
@@ -114,15 +121,21 @@ class SnpPage:
 
         return None
 
-    def _find_genotypes(self, bs: BeautifulSoup) -> Optional[list[list[str]]]:
+    def _find_genotype_summaries(self, bs: BeautifulSoup) -> list[GenotypeSummary]:
         table = bs.find("table", {"class": "sortable smwtable"})
         if table:
             d2 = self._table_to_list(table)
-            result = d2[1:]
-            print(d2[1:])
-            return result
+            genotype_summaries = [
+                GenotypeSummary(
+                    genotype_str=row[0],
+                    magnitude=float(row[1]) if row[1] else None,
+                    description=row[2],
+                )
+                for row in d2[1:]
+            ]
+            return genotype_summaries
 
-        return None
+        return []
 
     def _table_to_list(self, table) -> list[list[str]]:
         rows = table.find_all('tr')
@@ -130,5 +143,5 @@ class SnpPage:
         for row in rows:
             cols = row.find_all('td')
             cols = [ele.text.strip() for ele in cols]
-            data.append([ele for ele in cols if ele])
+            data.append(cols)
         return data

@@ -12,7 +12,7 @@ import random
 
 from GenomeImporter import PersonalData, Approved
 from data_types import Rsid
-from snpedia import SnpediaWithCache, SnpPage
+from snpedia import SnpediaWithCache, SnpPage, GenotypeSummary
 from utils import get_default_data_dir
 
 COMPLEMENTS = {
@@ -65,7 +65,7 @@ class SNPCrawl:
             info = SnpPage(html).parse()
             self.rsidDict[rsid.lower()] = {
                 "Description": info.description or "",
-                "Variations": info.genotypes or [],
+                "Variations": [genotype_summary.to_dict() for genotype_summary in info.genotype_summaries],
                 "StabilizedOrientation": (
                     info.stabilized_orientation.value if info.stabilized_orientation is not None else ""
                 ),
@@ -84,7 +84,7 @@ class SNPCrawl:
             comp1, comp2 = comp2, comp1
         return f"({comp1};{comp2})"
 
-    def _chooseVariation(self, our_snp, variations, stbl_orient: str, debug_rsid: str) -> Optional[int]:
+    def _chooseVariation(self, our_snp, variations: Sequence[GenotypeSummary], stbl_orient: str, debug_rsid: str) -> Optional[int]:
         for i, variation in enumerate(variations):
             if stbl_orient == "plus":
                 our_oriented_snp = our_snp
@@ -95,7 +95,7 @@ class SNPCrawl:
             else:
                 return None
 
-            if our_oriented_snp == variation[0]:
+            if our_oriented_snp == variation["genotype_str"]:
                 return i
 
         if len(variations) == 3:  # Usually contains all variants.
@@ -136,13 +136,19 @@ class SNPCrawl:
             else:
                 variation_idx = None
 
-            variations = [" ".join(variation) for variation in variations_data]
+            variations = ["".join([
+                    variation["genotype_str"],
+                    str(variation["magnitude"]) if variation["magnitude"] is not None else "",
+                    variation["description"] or ''
+                ])
+                for variation in variations_data
+            ]
             importance = None
             if variation_idx is not None:
                 variations[variation_idx] = f'<b>{variations[variation_idx]}</b>'
                 try:
-                    if len(variations_data[variation_idx]) > 1:
-                        importance = float(variations_data[variation_idx][1])
+                    if variations_data[variation_idx]["magnitude"] is not None:
+                        importance = float(variations_data[variation_idx]["magnitude"])
                 except ValueError:
                     pass  # Ignore missing importance.
 
