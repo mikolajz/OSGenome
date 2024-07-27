@@ -4,6 +4,7 @@ from DataCrawler import SNPCrawl
 import io
 
 from GenomeImporter import PersonalData
+from snpedia import SnpediaWithCache, ParsedSnpsStorage
 from utils import get_default_data_dir
 
 app = Flask(__name__, template_folder='templates')
@@ -55,7 +56,9 @@ def get_types():
 def main() -> None:
     data_dir = get_default_data_dir()
     personal_data = PersonalData.from_cache(data_dir)
-    app.data_list = SNPCrawl(data_dir=data_dir).createList(personal_data=personal_data)  # type: ignore[attr-defined]
+    snpedia = SnpediaWithCache(data_dir=data_dir)
+    parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
+    app.data_list = SNPCrawl(snpedia=snpedia, parsed_snps_storage=parsed_snps_storage).createList(personal_data=personal_data)  # type: ignore[attr-defined]
     app.run(debug=True)
 
 

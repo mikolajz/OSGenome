@@ -11,8 +11,8 @@ import argparse
 import random
 
 from GenomeImporter import PersonalData, Approved
-from data_types import Rsid
-from snpedia import SnpediaWithCache, SnpPage, GenotypeSummary
+from data_types import Rsid, Orientation
+from snpedia import SnpediaWithCache, SnpPage, GenotypeSummary, ParsedSnpsStorage
 from utils import get_default_data_dir
 
 COMPLEMENTS = {
@@ -26,15 +26,9 @@ VARIANT_REGEXP = re.compile(r'\(([ACTG-]);([ACTG-])\)')
 
 
 class SNPCrawl:
-    def __init__(self, data_dir: Path) -> None:
-        self._data_dir = data_dir
-        self._rsid_list_path = data_dir / "rsidDict.json"
-        if self._rsid_list_path.exists():
-            self.rsidDict = self.import_dict(self._rsid_list_path)
-        else:
-            self.rsidDict = {}
-
-        self._snpedia = SnpediaWithCache(data_dir=data_dir)
+    def __init__(self, snpedia: SnpediaWithCache, parsed_snps_storage: ParsedSnpsStorage) -> None:
+        self._snpedia = snpedia
+        self._parsed_snp_storage = parsed_snps_storage
 
     def crawl(self, rsids: Sequence[str]) -> None:
         normalized_rsids = [Rsid(item.lower()) for item in rsids]
@@ -44,32 +38,26 @@ class SNPCrawl:
     def _download_rsids(self, rsids: Sequence[Rsid]):
         with requests.Session() as session:
             for count, rsid in enumerate(rsids):
+                if rsid in self._parsed_snp_storage.snp_infos().keys():
+                    print(f"SNP {rsid} already present")  # Shouldn't happen.
+                    continue
+
                 print(f"Loading {rsid}... ", end="", flush=True)
                 html = self._snpedia.load_rsid(rsid, session)
                 if html is None:
                     continue
 
-                self.grabTable(rsid, html)
+                info = SnpPage(html).parse()
+                self._parsed_snp_storage.set_snp(rsid, info)
                 print("")
 
                 completed = count + 1
                 if completed % 100 == 0:
                     print("%i out of %s completed" % (completed, len(rsids)))
-                    self.export()
+                    self._parsed_snp_storage.export()
                     print("exporting current results")
 
-        self.export()
-
-    def grabTable(self, rsid: str, html: bytes) -> None:
-        if rsid not in self.rsidDict.keys():
-            info = SnpPage(html).parse()
-            self.rsidDict[rsid.lower()] = {
-                "Description": info.description or "",
-                "Variations": [genotype_summary.to_dict() for genotype_summary in info.genotype_summaries],
-                "StabilizedOrientation": (
-                    info.stabilized_orientation.value if info.stabilized_orientation is not None else ""
-                ),
-            }
+        self._parsed_snp_storage.export()
 
     def _complement(self, variant: str) -> Optional[str]:
         m = VARIANT_REGEXP.match(variant)
@@ -84,18 +72,18 @@ class SNPCrawl:
             comp1, comp2 = comp2, comp1
         return f"({comp1};{comp2})"
 
-    def _chooseVariation(self, our_snp, variations: Sequence[GenotypeSummary], stbl_orient: str, debug_rsid: str) -> Optional[int]:
+    def _chooseVariation(self, our_snp, variations: Sequence[GenotypeSummary], stbl_orient: Optional[Orientation], debug_rsid: str) -> Optional[int]:
         for i, variation in enumerate(variations):
-            if stbl_orient == "plus":
+            if stbl_orient is Orientation.PLUS:
                 our_oriented_snp = our_snp
-            elif stbl_orient == "minus":
+            elif stbl_orient is Orientation.MINUS:
                 # TODO: Stabilized orientation doesn't always works (e.g., rs10993994 for GRCh38). Probably we should
                 #  look at reference genome used in SNPedia and in the analyzed genome.
                 our_oriented_snp = self._complement(our_snp)
             else:
                 return None
 
-            if our_oriented_snp == variation["genotype_str"]:
+            if our_oriented_snp == variation.genotype_str:
                 return i
 
         if len(variations) == 3:  # Usually contains all variants.
@@ -106,40 +94,30 @@ class SNPCrawl:
         rsidList = []
         make = lambda rsname, description, variations, stbl_orientation, importance: \
             {"Name": rsname,
-             "Description": description,
-             "Importance": importance,
+             "Description": description or "",
+             "Importance": importance or "",
              "Genotype": personal_data.get_genotype(rsname.lower()),
              "Variations": str.join("<br>", variations),
-             "StabilizedOrientation":stbl_orientation
+             "StabilizedOrientation": stbl_orientation.value if stbl_orientation is not None else ""
             }
 
-        messaged_once = False
-        for rsid in self.rsidDict.keys():
-            curdict = self.rsidDict[rsid]
-            if "StabilizedOrientation" in curdict:
-                stbl_orient = curdict["StabilizedOrientation"]
-            else:
-                stbl_orient = "Old Data Format"
-                if not messaged_once:
-                    print("Old Data Detected, Will not display variations bolding with old data.") 
-                    print("See ReadMe for more details")
-                    messaged_once = True
-
-            variations_data = curdict["Variations"]
+        snp_infos = self._parsed_snp_storage.snp_infos()
+        for rsid, snp_info in snp_infos.items():
+            variations_data = snp_info.genotype_summaries
             if personal_data.has_genotype(rsid):
                 variation_idx = self._chooseVariation(
                     our_snp=personal_data.get_genotype(rsid),
                     variations=variations_data,
-                    stbl_orient=stbl_orient,
+                    stbl_orient=snp_info.stabilized_orientation,
                     debug_rsid=rsid.lower(),
                 )
             else:
                 variation_idx = None
 
             variations = ["".join([
-                    variation["genotype_str"],
-                    str(variation["magnitude"]) if variation["magnitude"] is not None else "",
-                    variation["description"] or ''
+                    variation.genotype_str,
+                    str(variation.magnitude) if variation.magnitude is not None else "",
+                    variation.description or ''
                 ])
                 for variation in variations_data
             ]
@@ -147,30 +125,16 @@ class SNPCrawl:
             if variation_idx is not None:
                 variations[variation_idx] = f'<b>{variations[variation_idx]}</b>'
                 try:
-                    if variations_data[variation_idx]["magnitude"] is not None:
-                        importance = float(variations_data[variation_idx]["magnitude"])
+                    if variations_data[variation_idx].magnitude is not None:
+                        importance = str(variations_data[variation_idx].magnitude)
                 except ValueError:
                     pass  # Ignore missing importance.
 
-            maker = make(rsid, curdict["Description"], variations, stbl_orient, importance)
+            maker = make(rsid, snp_info.description, variations, snp_info.stabilized_orientation, importance)
             
             rsidList.append(maker)
 
         return rsidList
-
-    @staticmethod
-    def import_dict(filepath: Path) -> Dict[str, Any]:
-        with filepath.open("r") as jsonfile:
-            return json.load(jsonfile)
-
-    def export(self):
-        #data = pd.DataFrame(self.rsidDict)
-        #data = data.fillna("-")
-        #data = data.transpose()
-        #datapath = os.path.join(os.path.curdir, "data", 'rsidDict.csv')
-        #data.to_csv(datapath)
-        with self._rsid_list_path.open("w") as jsonfile:
-            json.dump(self.rsidDict, jsonfile)
 
 
 #Some interesting SNPs to get started with
@@ -179,16 +143,14 @@ SEED_RSIDS = [
     "rs1801133",
 ]
 
-#os.chdir(os.path.dirname(__file__))
-
 
 def find_relevant_rsids(
         personal: PersonalData,
-        crawl: SNPCrawl,
+        parsed_snps_storage: ParsedSnpsStorage,
         count: int,
 ) -> Sequence[str]:
     snps_of_interest = [snp for snp in personal.snps if personal.has_genotype(snp)]
-    snps_to_grab = [snp for snp in snps_of_interest if snp not in crawl.rsidDict]
+    snps_to_grab = [snp for snp in snps_of_interest if snp not in parsed_snps_storage.snp_infos().keys()]
     print(f"Yet to load: {len(snps_to_grab)}/{len(snps_of_interest)} genome SNPs available in SNPedia")
     snps_to_grab_set = set(snps_to_grab)
 
@@ -212,13 +174,15 @@ def main():
     args = parser.parse_args()
 
     data_dir = get_default_data_dir()
-    df_crawl = SNPCrawl(data_dir=data_dir)
+    snpedia = SnpediaWithCache(data_dir=data_dir)
+    parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
+    df_crawl = SNPCrawl(snpedia=snpedia, parsed_snps_storage=parsed_snps_storage)
 
     if args.filepath:
         rsids_on_snpedia = Approved(data_dir=data_dir)
         personal = PersonalData.from_input_file(Path(args.filepath), rsids_on_snpedia)
         personal.export(data_dir)  # Prepare cache for the webapp.
-        rsids = find_relevant_rsids(personal, df_crawl, count=args.count)
+        rsids = find_relevant_rsids(personal, parsed_snps_storage, count=args.count)
     else:
         rsids = SEED_RSIDS
 

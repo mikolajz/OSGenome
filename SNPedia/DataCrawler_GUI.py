@@ -5,6 +5,7 @@ from tkinter import *
 
 from DataCrawler import SNPCrawl, find_relevant_rsids
 from GenomeImporter import PersonalData, Approved
+from snpedia import SnpediaWithCache, ParsedSnpsStorage
 from utils import get_default_data_dir
 
 
@@ -34,14 +35,16 @@ def get_filepath_using_gui(data_dir: Path) -> Path:
 
 def main():
     data_dir = get_default_data_dir()
-    df_crawl = SNPCrawl(data_dir=data_dir)
+    snpedia = SnpediaWithCache(data_dir=data_dir)
+    parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
+    df_crawl = SNPCrawl(snpedia=snpedia, parsed_snps_storage=parsed_snps_storage)
 
     file_path = get_filepath_using_gui(data_dir)
 
     rsids_on_snpedia = Approved(data_dir=data_dir)
     personal = PersonalData.from_input_file(file_path, rsids_on_snpedia)
     personal.export(data_dir)  # Prepare cache for the webapp.
-    rsids = find_relevant_rsids(personal, df_crawl, count=READ_COUNT)
+    rsids = find_relevant_rsids(personal, parsed_snps_storage, count=READ_COUNT)
 
     df_crawl.crawl(rsids)
 
