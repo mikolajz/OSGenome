@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from bs4 import BeautifulSoup
 from dataclasses_json import DataClassJsonMixin
 
-from data_types import Rsid
+from data_types import Rsid, Orientation
 
 RSID_REGEXP = re.compile(r'^[a-zA-Z][a-zA-Z0-9]*$')
 
@@ -54,3 +55,80 @@ class SnpediaWithCache:
         meta_path.write_text(cache_metadata.to_json())
 
         return html
+
+
+@dataclass(frozen=True)
+class SnpediaSnpInfo:
+    description: Optional[str]
+    genotypes: Optional[list[list[str]]]
+    stabilized_orientation: Optional[Orientation]
+
+
+class SnpPage:
+    def __init__(self, html: bytes):
+        self._html = html
+
+    def parse(self) -> SnpediaSnpInfo:
+        bs = BeautifulSoup(self._html, "html.parser")
+
+        return SnpediaSnpInfo(
+            description=self._find_description(bs),
+            genotypes=self._find_genotypes(bs),
+            stabilized_orientation=self._find_stable_orientation(bs),
+        )
+
+    def _find_stable_orientation(self, bs: BeautifulSoup) -> Optional[Orientation]:
+        # Orientation Finder
+        orientation = bs.find("td", string="Rs_StabilizedOrientation")
+        if orientation is not None and orientation.parent is not None:
+            plus = orientation.parent.find("td", string="plus")
+            minus = orientation.parent.find("td", string="minus")
+
+            if plus:
+                return Orientation.PLUS
+            if minus:
+                return Orientation.MINUS
+
+        link = bs.find("a", {"title": "StabilizedOrientation"})
+        if link is not None and link.parent is not None and link.parent.parent is not None:
+            table_row = link.parent.parent
+            plus = table_row.find("td", string="plus")
+            minus = table_row.find("td", string="minus")
+            if plus:
+                return Orientation.PLUS
+            if minus:
+                return Orientation.MINUS
+
+        return None
+
+    def _find_description(self, bs: BeautifulSoup) -> Optional[str]:
+        description_element = bs.find(
+            'table',
+            {'style': 'border: 1px; background-color: #FFFFC0; border-style: solid; margin:1em; width:90%;'},
+        )
+        if description_element:
+            d1 = self._table_to_list(description_element)
+            result = d1[0][0]
+            print(f"Description: {result}")
+            return result
+
+        return None
+
+    def _find_genotypes(self, bs: BeautifulSoup) -> Optional[list[list[str]]]:
+        table = bs.find("table", {"class": "sortable smwtable"})
+        if table:
+            d2 = self._table_to_list(table)
+            result = d2[1:]
+            print(d2[1:])
+            return result
+
+        return None
+
+    def _table_to_list(self, table) -> list[list[str]]:
+        rows = table.find_all('tr')
+        data = []
+        for row in rows:
+            cols = row.find_all('td')
+            cols = [ele.text.strip() for ele in cols]
+            data.append([ele for ele in cols if ele])
+        return data

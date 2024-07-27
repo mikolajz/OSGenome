@@ -12,7 +12,7 @@ import random
 
 from GenomeImporter import PersonalData, Approved
 from data_types import Rsid
-from snpedia import SnpediaWithCache
+from snpedia import SnpediaWithCache, SnpPage
 from utils import get_default_data_dir
 
 COMPLEMENTS = {
@@ -62,52 +62,14 @@ class SNPCrawl:
 
     def grabTable(self, rsid: str, html: bytes) -> None:
         if rsid not in self.rsidDict.keys():
+            info = SnpPage(html).parse()
             self.rsidDict[rsid.lower()] = {
-                "Description": "",
-                "Variations": [],
-                "StabilizedOrientation": ""
+                "Description": info.description or "",
+                "Variations": info.genotypes or [],
+                "StabilizedOrientation": (
+                    info.stabilized_orientation.value if info.stabilized_orientation is not None else ""
+                ),
             }
-            bs = BeautifulSoup(html, "html.parser")
-            table = bs.find("table", {"class": "sortable smwtable"})
-            description = bs.find('table', {'style': 'border: 1px; background-color: #FFFFC0; border-style: solid; margin:1em; width:90%;'})
-
-            #Orientation Finder
-            orientation = bs.find("td", string="Rs_StabilizedOrientation")
-            if orientation is not None and orientation.parent is not None:
-                plus = orientation.parent.find("td",string="plus")
-                minus = orientation.parent.find("td",string="minus")
-                if plus:
-                    self.rsidDict[rsid]["StabilizedOrientation"] = "plus"
-                if minus:
-                    self.rsidDict[rsid]["StabilizedOrientation"] = "minus"
-            else:
-                  link = bs.find("a",{"title":"StabilizedOrientation"})
-                  if link is not None and link.parent is not None and link.parent.parent is not None:
-                    table_row = link.parent.parent
-                    plus = table_row.find("td",string="plus")
-                    minus = table_row.find("td",string="minus")
-                    if plus:
-                        self.rsidDict[rsid]["StabilizedOrientation"] = "plus"
-                    if minus:
-                        self.rsidDict[rsid]["StabilizedOrientation"] = "minus"
-
-            if description:
-                d1 = self.tableToList(description)
-                self.rsidDict[rsid]["Description"] = d1[0][0]
-                print(d1[0][0].encode("utf-8"))
-            if table:
-                d2 = self.tableToList(table)
-                self.rsidDict[rsid]["Variations"] = d2[1:]
-                print(d2[1:])
-
-    def tableToList(self, table):
-        rows = table.find_all('tr')
-        data = []
-        for row in rows:
-            cols = row.find_all('td')
-            cols = [ele.text.strip() for ele in cols]
-            data.append([ele for ele in cols if ele])
-        return data
 
     def _complement(self, variant: str) -> Optional[str]:
         m = VARIANT_REGEXP.match(variant)
