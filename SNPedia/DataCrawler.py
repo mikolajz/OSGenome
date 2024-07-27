@@ -1,19 +1,18 @@
 import logging
 import re
-import sys
 from pathlib import Path
 from typing import Optional, Sequence, Any, Dict
 
 import requests
 from bs4 import BeautifulSoup
 
-import pprint
 import json
 import argparse
-import os
 import random
 
 from GenomeImporter import PersonalData, Approved
+from data_types import Rsid
+from snpedia import SnpediaWithCache
 from utils import get_default_data_dir
 
 COMPLEMENTS = {
@@ -35,73 +34,71 @@ class SNPCrawl:
         else:
             self.rsidDict = {}
 
-    def crawl(self, rsids: Sequence[str]) -> None:
-        rsids = [item.lower() for item in rsids]
-        if rsids:
-            self.initcrawl(rsids)
-        self.export()
+        self._snpedia = SnpediaWithCache(data_dir=data_dir)
 
-    def initcrawl(self, rsids):
-        count = 0
+    def crawl(self, rsids: Sequence[str]) -> None:
+        normalized_rsids = [Rsid(item.lower()) for item in rsids]
+        if rsids:
+            self._download_rsids(normalized_rsids)
+
+    def _download_rsids(self, rsids: Sequence[Rsid]):
         with requests.Session() as session:
-            for rsid in rsids:
-                print(rsid)
-                self.grabTable(rsid, session)
+            for count, rsid in enumerate(rsids):
+                print(f"Loading {rsid}... ", end="", flush=True)
+                html = self._snpedia.load_rsid(rsid, session)
+                if html is None:
+                    continue
+
+                self.grabTable(rsid, html)
                 print("")
-                count += 1
-                if count % 100 == 0:
-                    print("%i out of %s completed" % (count, len(rsids)))
+
+                completed = count + 1
+                if completed % 100 == 0:
+                    print("%i out of %s completed" % (completed, len(rsids)))
                     self.export()
                     print("exporting current results")
-        pp = pprint.PrettyPrinter(indent=1)
-        #pp.pprint(self.rsidDict)
 
-    def grabTable(self, rsid: str, session: requests.Session) -> None:
-        url = "https://bots.snpedia.com/index.php/" + rsid
-        try:
-            if rsid not in self.rsidDict.keys():
-                self.rsidDict[rsid.lower()] = {
-                    "Description": "",
-                    "Variations": [],
-                    "StabilizedOrientation": ""
-                }
-                response = session.get(url)
-                html = response.content
-                bs = BeautifulSoup(html, "html.parser")
-                table = bs.find("table", {"class": "sortable smwtable"})
-                description = bs.find('table', {'style': 'border: 1px; background-color: #FFFFC0; border-style: solid; margin:1em; width:90%;'})
-                
-                #Orientation Finder
-                orientation = bs.find("td", string="Rs_StabilizedOrientation")
-                if orientation is not None and orientation.parent is not None:
-                    plus = orientation.parent.find("td",string="plus")
-                    minus = orientation.parent.find("td",string="minus")
+        self.export()
+
+    def grabTable(self, rsid: str, html: bytes) -> None:
+        if rsid not in self.rsidDict.keys():
+            self.rsidDict[rsid.lower()] = {
+                "Description": "",
+                "Variations": [],
+                "StabilizedOrientation": ""
+            }
+            bs = BeautifulSoup(html, "html.parser")
+            table = bs.find("table", {"class": "sortable smwtable"})
+            description = bs.find('table', {'style': 'border: 1px; background-color: #FFFFC0; border-style: solid; margin:1em; width:90%;'})
+
+            #Orientation Finder
+            orientation = bs.find("td", string="Rs_StabilizedOrientation")
+            if orientation is not None and orientation.parent is not None:
+                plus = orientation.parent.find("td",string="plus")
+                minus = orientation.parent.find("td",string="minus")
+                if plus:
+                    self.rsidDict[rsid]["StabilizedOrientation"] = "plus"
+                if minus:
+                    self.rsidDict[rsid]["StabilizedOrientation"] = "minus"
+            else:
+                  link = bs.find("a",{"title":"StabilizedOrientation"})
+                  if link is not None and link.parent is not None and link.parent.parent is not None:
+                    table_row = link.parent.parent
+                    plus = table_row.find("td",string="plus")
+                    minus = table_row.find("td",string="minus")
                     if plus:
                         self.rsidDict[rsid]["StabilizedOrientation"] = "plus"
                     if minus:
-                        self.rsidDict[rsid]["StabilizedOrientation"] = "minus" 
-                else:
-                      link = bs.find("a",{"title":"StabilizedOrientation"})
-                      if link is not None and link.parent is not None and link.parent.parent is not None:
-                        table_row = link.parent.parent
-                        plus = table_row.find("td",string="plus")
-                        minus = table_row.find("td",string="minus")
-                        if plus:
-                            self.rsidDict[rsid]["StabilizedOrientation"] = "plus"
-                        if minus:
-                            self.rsidDict[rsid]["StabilizedOrientation"] = "minus" 
+                        self.rsidDict[rsid]["StabilizedOrientation"] = "minus"
 
-
-                if description:
-                    d1 = self.tableToList(description)
-                    self.rsidDict[rsid]["Description"] = d1[0][0]
-                    print(d1[0][0].encode("utf-8"))
-                if table:
-                    d2 = self.tableToList(table)
-                    self.rsidDict[rsid]["Variations"] = d2[1:]
-                    print(d2[1:])
-        except requests.exceptions.RequestException:
-            print(url + " was not found or contained no valid information")
+            if description:
+                d1 = self.tableToList(description)
+                self.rsidDict[rsid]["Description"] = d1[0][0]
+                print(d1[0][0].encode("utf-8"))
+            if table:
+                d2 = self.tableToList(table)
+                self.rsidDict[rsid]["Variations"] = d2[1:]
+                print(d2[1:])
 
     def tableToList(self, table):
         rows = table.find_all('tr')
