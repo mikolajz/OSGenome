@@ -10,11 +10,12 @@ from typing import Mapping, List
 import requests
 import pprint
 
+from data_types import Rsid
 from utils import get_default_data_dir
 
 
 class PersonalData:
-    def __init__(self, snpdict: Mapping[str, str]) -> None:
+    def __init__(self, snpdict: Mapping[Rsid, str]) -> None:
         self.snpdict = snpdict
         self.snps = list(snpdict.keys())
 
@@ -29,7 +30,7 @@ class PersonalData:
         filtered_personal_data = [pd for pd in personaldata if pd[0].lower() in accepted_set]
         print(f"{len(filtered_personal_data)}/{len(personaldata)} SNPs from personal data present also in SNPedia.")
         
-        snpdict = {item[0].lower(): "(" + item[3].rstrip()[0] + ";" + item[3].rstrip()[-1] + ")"
+        snpdict = {Rsid(item[0].lower()): "(" + item[3].rstrip()[0] + ";" + item[3].rstrip()[-1] + ")"
                    for item in filtered_personal_data}
 
         return PersonalData(snpdict)
@@ -45,11 +46,11 @@ class PersonalData:
         with self._get_file_path(data_dir).open("w") as jsonfile:
             json.dump(self.snpdict, jsonfile)
 
-    def has_genotype(self, rsid):
+    def has_genotype(self, rsid) -> bool:
         genotype = self.snpdict.get(rsid)
         return genotype is not None and not genotype == "(-;-)"
 
-    def get_genotype(self, rsid: str) -> str:
+    def get_genotype(self, rsid: Rsid) -> str:
         return self.snpdict.get(rsid, "(-;-)")
 
     @staticmethod

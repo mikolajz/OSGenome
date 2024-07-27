@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -43,8 +44,8 @@ class SnpediaWithCache:
         try:
             response = session.get(url)
             response.raise_for_status()
-        except requests.exceptions.RequestException:
-            print(f"{url} was not found or contained no valid information")
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"{url} was not found or contained no valid information ({e})")
             return None
 
         html = response.content
@@ -136,7 +137,6 @@ class SnpPage:
         if description_element:
             d1 = self._table_to_list(description_element)
             result = d1[0][0]
-            print(f"Description: {result}")
             return result
 
         return None
