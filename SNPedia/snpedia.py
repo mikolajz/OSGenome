@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import logging
 import re
@@ -13,6 +11,7 @@ from bs4 import BeautifulSoup
 from dataclasses_json import DataClassJsonMixin
 
 from data_types import Rsid, Orientation
+from genotype import Genotype
 
 RSID_REGEXP = re.compile(r'^[a-zA-Z][a-zA-Z0-9]*$')
 
@@ -77,7 +76,7 @@ class SnpediaWithCache:
 
 @dataclass(frozen=True)
 class GenotypeSummary(DataClassJsonMixin):
-    genotype_str: str
+    genotype_str: Genotype
     magnitude: Optional[float]
     description: Optional[str]
 
@@ -147,7 +146,7 @@ class SnpPage:
             d2 = self._table_to_list(table)
             genotype_summaries = [
                 GenotypeSummary(
-                    genotype_str=row[0],
+                    genotype_str=Genotype.from_string(row[0]),
                     magnitude=float(row[1]) if row[1] else None,
                     description=row[2],
                 )
@@ -184,7 +183,7 @@ class ParsedSnpsStorage:
         self._file_path = file_path
 
     @staticmethod
-    def load(data_dir: Path, snpedia: SnpediaWithCache) -> ParsedSnpsStorage:
+    def load(data_dir: Path, snpedia: SnpediaWithCache) -> "ParsedSnpsStorage":
         file_path = data_dir / "rsidDict.json"
         contents = json.loads(file_path.read_bytes())
 

@@ -11,6 +11,7 @@ import requests
 import pprint
 
 from data_types import Rsid
+from genotype import Genotype
 from utils import get_default_data_dir
 
 
@@ -50,8 +51,8 @@ class PersonalData:
         genotype = self.snpdict.get(rsid)
         return genotype is not None and not genotype == "(-;-)"
 
-    def get_genotype(self, rsid: Rsid) -> str:
-        return self.snpdict.get(rsid, "(-;-)")
+    def get_genotype(self, rsid: Rsid) -> Genotype:
+        return Genotype.from_string(self.snpdict[rsid])
 
     @staticmethod
     def _get_file_path(data_dir: Path) -> Path:

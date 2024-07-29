@@ -8,19 +8,11 @@ import io
 
 from GenomeImporter import PersonalData
 from data_types import Orientation
+from genotype import Genotype
 from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary
 from utils import get_default_data_dir
 
 app = Flask(__name__, template_folder='templates')
-
-COMPLEMENTS = {
-    "A": "T",
-    "T": "A",
-    "C": "G",
-    "G": "C",
-}
-
-VARIANT_REGEXP = re.compile(r'\(([ACTG-]);([ACTG-])\)')
 
 
 class UiListGenerator:
@@ -28,20 +20,7 @@ class UiListGenerator:
     def __init__(self, parsed_snps_storage: ParsedSnpsStorage) -> None:
         self._parsed_snps_storage = parsed_snps_storage
 
-    def _complement(self, variant: str) -> Optional[str]:
-        m = VARIANT_REGEXP.match(variant)
-        if m is None:
-            # print("XXX", variant)
-            return None
-
-        comp1 = COMPLEMENTS.get(m.group(1))
-        comp2 = COMPLEMENTS.get(m.group(2))
-        if comp1 is not None and comp2 is not None and comp1 > comp2:
-            # It seems there is a convention to put them in alphabetic order
-            comp1, comp2 = comp2, comp1
-        return f"({comp1};{comp2})"
-
-    def _chooseVariation(self, our_snp, variations: Sequence[GenotypeSummary], stbl_orient: Optional[Orientation],
+    def _chooseVariation(self, our_snp: Genotype, variations: Sequence[GenotypeSummary], stbl_orient: Optional[Orientation],
                          debug_rsid: str) -> Optional[int]:
         for i, variation in enumerate(variations):
             if stbl_orient is Orientation.PLUS:
@@ -49,11 +28,11 @@ class UiListGenerator:
             elif stbl_orient is Orientation.MINUS:
                 # TODO: Stabilized orientation doesn't always works (e.g., rs10993994 for GRCh38). Probably we should
                 #  look at reference genome used in SNPedia and in the analyzed genome.
-                our_oriented_snp = self._complement(our_snp)
+                our_oriented_snp = our_snp.complementary()
             else:
                 return None
 
-            if our_oriented_snp == variation.genotype_str:
+            if our_oriented_snp.unordered_equal(variation.genotype_str):
                 return i
 
         if len(variations) == 3:  # Usually contains all variants.
@@ -66,7 +45,7 @@ class UiListGenerator:
             {"Name": rsname,
              "Description": description or "",
              "Importance": importance or "",
-             "Genotype": personal_data.get_genotype(rsname.lower()),
+             "Genotype": str(personal_data.get_genotype(rsname)),
              "Variations": str.join("<br>", variations),
              "StabilizedOrientation": stbl_orientation.value if stbl_orientation is not None else ""
              }
@@ -85,7 +64,7 @@ class UiListGenerator:
                 variation_idx = None
 
             variations = [" ".join([
-                variation.genotype_str,
+                str(variation.genotype_str),
                 str(variation.magnitude) if variation.magnitude is not None else "",
                 variation.description or ''
             ])
