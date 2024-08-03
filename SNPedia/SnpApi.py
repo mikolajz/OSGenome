@@ -9,7 +9,7 @@ import io
 from GenomeImporter import PersonalData
 from data_types import Orientation
 from genotype import Genotype
-from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary
+from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary, SnpediaSnpInfo
 from utils import get_default_data_dir
 
 app = Flask(__name__, template_folder='templates')
@@ -39,17 +39,23 @@ class UiListGenerator:
             logging.warning(f"Couldn't find {our_snp} in {variations} ({debug_rsid}, {stbl_orient})")
         return None
 
+    def _compute_secondary_importance(self, snp_info: SnpediaSnpInfo, variation_idx: Optional[int]) -> int:
+        # A tie-breaker, especially useful for entries with missing magnitude.
+        result = 0
+        if snp_info.description:
+            result += 1
+        if snp_info.genotype_summaries:
+            result += 1
+        if variation_idx is not None:
+            if snp_info.genotype_summaries[variation_idx].magnitude != 0:  # We value an explicit 0 less than None.
+                result += 2
+            else:
+                result += 1
+
+        return result
+
     def createList(self, personal_data: PersonalData) -> Sequence[dict[str, Any]]:
         rsidList = []
-        make = lambda rsname, description, variations, stbl_orientation, importance: \
-            {"Name": rsname,
-             "Description": description or "",
-             "Importance": importance or "",
-             "Genotype": str(personal_data.get_genotype(rsname)),
-             "Variations": str.join("<br>", variations),
-             "StabilizedOrientation": stbl_orientation.value if stbl_orientation is not None else ""
-             }
-
         snp_infos = self._parsed_snps_storage.snp_infos()
         for rsid, snp_info in snp_infos.items():
             variations_data = snp_info.genotype_summaries
@@ -75,12 +81,26 @@ class UiListGenerator:
                 variations[variation_idx] = f'<b>{variations[variation_idx]}</b>'
                 try:
                     if variations_data[variation_idx].magnitude is not None:
-                        importance = str(variations_data[variation_idx].magnitude)
+                        importance = variations_data[variation_idx].magnitude
                 except ValueError:
                     pass  # Ignore missing importance.
 
-            maker = make(rsid, snp_info.description, variations, snp_info.stabilized_orientation, importance)
+            # Add a tie-breaker for entries with the same importance value, especially to sort missing importance
+            actual_importance = round(
+                (importance or 0.0) * 100 + self._compute_secondary_importance(snp_info, variation_idx)
+            )
 
+            orientation = snp_info.stabilized_orientation
+
+            maker = {
+                "Name": rsid,
+                "Description": snp_info.description or "",
+                "Importance": importance,
+                "ActualImportance": actual_importance,
+                "Genotype": str(personal_data.get_genotype(rsid)),
+                "Variations": str.join("<br>", variations),
+                "StabilizedOrientation": orientation.value if orientation is not None else ""
+            }
             rsidList.append(maker)
 
         return rsidList

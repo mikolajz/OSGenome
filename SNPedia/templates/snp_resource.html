@@ -107,7 +107,7 @@
                             read: "/api/rsids"
                         },
                         sort: {
-                            field: "Importance",
+                            field: "ActualImportance",
                             dir: "desc"
                         },
                         schema: {
@@ -120,7 +120,13 @@
                     columns: [
                         { field: "Name", width: '190px', title: "Name" },
                         { field: "Description", width: '290px', title: "Short Description" },
-                        { field: "Importance", width: '200px', title: "Importance" },
+                        {
+                            field: "Importance",
+                            width: '200px',
+                            title: "Importance",
+                            sortable: { compare: function(a, b) { return a.ActualImportance - b.ActualImportance} },
+                        },
+                        // { field: "ActualImportance", width: '200px', title: "SImportance" },
                         { field: "StabilizedOrientation", width: '200px', title: "Stabilized Orientation", encoded: false },
                         { field: "Genotype", width: '190px', title: "Individual Genotype" },
                         { field: "Variations", width: '490px', title: "Genotype variations", encoded: false }
