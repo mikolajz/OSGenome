@@ -86,11 +86,12 @@ class SnpediaSnpInfo:
     description: Optional[str]
     genotype_summaries: list[GenotypeSummary]
     stabilized_orientation: Optional[Orientation]
+    orientation: Optional[Orientation]
 
 
 class SnpPage:
 
-    DATA_FORMAT_VERSION = 1  # Bump by 1 each time the format of rsidList.json changes.
+    DATA_FORMAT_VERSION = 2  # Bump by 1 each time the format of rsidList.json changes.
 
     def __init__(self, html: bytes):
         self._html = html
@@ -102,6 +103,7 @@ class SnpPage:
             description=self._find_description(bs),
             genotype_summaries=self._find_genotype_summaries(bs),
             stabilized_orientation=self._find_stable_orientation(bs),
+            orientation=self._find_orientation(bs),
         )
 
     def _find_stable_orientation(self, bs: BeautifulSoup) -> Optional[Orientation]:
@@ -117,6 +119,19 @@ class SnpPage:
                 return Orientation.MINUS
 
         link = bs.find("a", {"title": "StabilizedOrientation"})
+        if link is not None and link.parent is not None and link.parent.parent is not None:
+            table_row = link.parent.parent
+            plus = table_row.find("td", string="plus")
+            minus = table_row.find("td", string="minus")
+            if plus:
+                return Orientation.PLUS
+            if minus:
+                return Orientation.MINUS
+
+        return None
+
+    def _find_orientation(self, bs: BeautifulSoup) -> Optional[Orientation]:
+        link = bs.find("a", {"title": "Orientation"})
         if link is not None and link.parent is not None and link.parent.parent is not None:
             table_row = link.parent.parent
             plus = table_row.find("td", string="plus")

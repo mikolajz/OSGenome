@@ -14,6 +14,11 @@ from utils import get_default_data_dir
 
 app = Flask(__name__, template_folder='templates')
 
+WARNING_EMOJI = "\u26A0\uFE0F"
+ORIENTATION_WARNING = (
+    f"{WARNING_EMOJI} <i>Orientation changed between versions of reference genome. "
+    "Despite efforts to do it right, we may have a A&lt;-&gt;T, C&lt;-&gt;G mismatch.</i>"
+)
 
 class UiListGenerator:
 
@@ -91,6 +96,12 @@ class UiListGenerator:
             )
 
             orientation = snp_info.stabilized_orientation
+
+            if snp_info.orientation is not None and snp_info.orientation != snp_info.stabilized_orientation:
+                variations = [
+                    ORIENTATION_WARNING,
+                    *variations,
+                ]
 
             maker = {
                 "Name": rsid,
