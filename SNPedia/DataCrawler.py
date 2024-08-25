@@ -8,6 +8,7 @@ import random
 
 from GenomeImporter import PersonalData, Approved
 from data_types import Rsid, Orientation
+from inputs.formats import InputFormat
 from snpedia import SnpediaWithCache, SnpPage, GenotypeSummary, ParsedSnpsStorage
 from utils import get_default_data_dir
 
@@ -76,7 +77,11 @@ def find_relevant_rsids(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--filepath', help='Filepath for 23andMe data to be used for import', required=False)
+    parser.add_argument(
+        '-f', '--filepath', help='Path to 23andMe or VCF data file (VCF must be in build38 format)', required=True
+    )
+    parser.add_argument('--format', choices=[f.value for f in InputFormat],
+                        help='Format of the input file; leave empty to autodetect')
     parser.add_argument('-n', '--count', help='Number of SNPs to download', type=int, default=100)
     args = parser.parse_args()
 
@@ -87,7 +92,7 @@ def main():
 
     if args.filepath:
         rsids_on_snpedia = Approved(data_dir=data_dir)
-        personal = PersonalData.from_input_file(Path(args.filepath), rsids_on_snpedia)
+        personal = PersonalData.from_input_file(Path(args.filepath), args.format, rsids_on_snpedia)
         personal.export(data_dir)  # Prepare cache for the webapp.
         rsids = find_relevant_rsids(personal, parsed_snps_storage, count=args.count)
     else:

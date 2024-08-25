@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import os
-import string
 import json
 from pathlib import Path
-from typing import Mapping, List
+from typing import Mapping, List, Optional
 
 import requests
-import pprint
 
 from data_types import Rsid
 from genotype import Genotype
+from inputs.formats import InputFormat, create_reader
 from utils import get_default_data_dir
 
 
@@ -21,18 +19,10 @@ class PersonalData:
         self.snps = list(snpdict.keys())
 
     @staticmethod
-    def from_input_file(filepath: Path, approved: Approved) -> PersonalData:
-        with open(filepath) as file:
-            relevant_data = [line for line in file.readlines() if line[0] != "#"]
-            file.close()
-
+    def from_input_file(filepath: Path, format_hint: Optional[str], approved: Approved) -> PersonalData:
+        data_input = create_reader(filepath, format_hint)
         accepted_set = set(approved.accepted)
-        personaldata = [line.split("\t") for line in relevant_data]
-        filtered_personal_data = [pd for pd in personaldata if pd[0].lower() in accepted_set]
-        print(f"{len(filtered_personal_data)}/{len(personaldata)} SNPs from personal data present also in SNPedia.")
-        
-        snpdict = {Rsid(item[0].lower()): "(" + item[3].rstrip()[0] + ";" + item[3].rstrip()[-1] + ")"
-                   for item in filtered_personal_data}
+        snpdict = {rsid: genotype for rsid, genotype in data_input.read(accepted_set)}
 
         return PersonalData(snpdict)
 
@@ -69,12 +59,12 @@ class Approved:
             self.accepted = self._load(self._file_path)
 
     @staticmethod
-    def _load(file_path: Path) -> List[str]:
+    def _load(file_path: Path) -> List[Rsid]:
         with file_path.open("r") as f:
             return json.load(f)
 
     @staticmethod
-    def _crawl(cmcontinue=None) -> List[str]:
+    def _crawl(cmcontinue=None) -> List[Rsid]:
         count = 0
         accepted = []
         print("Grabbing approved SNPs")
@@ -85,7 +75,7 @@ class Approved:
 
             cur = jd["query"]["categorymembers"]
             for item in cur:
-                accepted += [item["title"].lower()]
+                accepted += [Rsid(item["title"].lower())]
             cmcontinue = jd["continue"]["cmcontinue"]
 
         while cmcontinue:
@@ -95,7 +85,7 @@ class Approved:
             jd = response.json()
             cur = jd["query"]["categorymembers"]
             for item in cur:
-                accepted += [item["title"].lower()]
+                accepted += [Rsid(item["title"].lower())]
             try:
                 cmcontinue = jd["continue"]["cmcontinue"]
             except KeyError:
@@ -123,7 +113,7 @@ if __name__ == "__main__":
     if args["filepath"]:
         data_dir = get_default_data_dir()
         rsids_on_snpedia = Approved(data_dir=data_dir)
-        pd = PersonalData.from_input_file(filepath=args["filepath"], approved=rsids_on_snpedia)
+        pd = PersonalData.from_input_file(filepath=args["filepath"], format_hint=None, approved=rsids_on_snpedia)
         print(pd.snps[:50])
         print(list(pd.snpdict.keys())[:10])
         print(list(pd.snpdict.values())[:10])
