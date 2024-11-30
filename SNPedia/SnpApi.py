@@ -75,10 +75,10 @@ class UiListGenerator:
                 variation_idx = None
 
             variations = [" ".join([
-                str(variation.genotype_str),
-                str(variation.magnitude) if variation.magnitude is not None else "",
-                variation.description or ''
-            ])
+                    str(variation.genotype_str),
+                    variation.description or '',
+                    f'(imp: {variation.magnitude})' if variation.magnitude is not None else "",
+                ])
                 for variation in variations_data
             ]
             importance = None
