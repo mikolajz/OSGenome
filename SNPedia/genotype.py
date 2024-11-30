@@ -64,3 +64,6 @@ class Genotype:
 
 dataclasses_json.cfg.global_config.encoders[Genotype] = Genotype.__str__
 dataclasses_json.cfg.global_config.decoders[Genotype] = Genotype.from_string
+# Needed when using `from __future__ import annotations`:
+dataclasses_json.cfg.global_config.encoders['Genotype'] = Genotype.__str__  # type: ignore[index]
+dataclasses_json.cfg.global_config.decoders['Genotype'] = Genotype.from_string   # type: ignore[index]
