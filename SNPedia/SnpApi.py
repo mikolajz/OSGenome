@@ -16,7 +16,7 @@ app = Flask(__name__, template_folder='templates')
 
 WARNING_EMOJI = "\u26A0\uFE0F"
 ORIENTATION_WARNING = (
-    f"{WARNING_EMOJI} <i>Orientation changed between versions of reference genome. "
+    f"{WARNING_EMOJI} <i><b>Orientation changed between versions of reference genome.</b> "
     "Despite efforts to do it right, we may have a A&lt;-&gt;T, C&lt;-&gt;G mismatch.</i>"
 )
 
