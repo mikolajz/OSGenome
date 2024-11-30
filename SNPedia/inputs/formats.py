@@ -7,7 +7,7 @@ from typing import Iterator, Tuple, Set, Optional
 import vcfpy
 from typing_extensions import assert_never
 
-from data_types import Rsid
+from data_types import Rsid, ReferenceBuild
 
 
 class InputFormat(Enum):
@@ -19,6 +19,10 @@ class PersonalDataInput(ABC):
 
     @abstractmethod
     def read(self, interesting: Set[Rsid]) -> Iterator[Tuple[Rsid, str]]:
+        pass
+
+    @abstractmethod
+    def get_reference_build(self) -> ReferenceBuild:
         pass
 
 
@@ -46,6 +50,9 @@ class MicroarrayInput(PersonalDataInput):
                 yield rsid, "(" + pd[3].rstrip()[0] + ";" + pd[3].rstrip()[-1] + ")"
 
         print(f"{interesting_count}/{lines_count} SNPs from personal data present also in SNPedia.")
+
+    def get_reference_build(self) -> ReferenceBuild:
+        return ReferenceBuild.BUILD37
 
 
 class VcfInput(PersonalDataInput):
@@ -88,6 +95,10 @@ class VcfInput(PersonalDataInput):
                 yield Rsid(rsid), "(" + ";".join(record.calls[self._sample_index].gt_bases) + ")"
 
         print(f"{interesting_count}/{lines_count} SNPs from personal data present also in SNPedia.")
+
+    def get_reference_build(self) -> ReferenceBuild:
+        # TODO: it's a naive assumption that all VCF files are build 38 - support other builds.
+        return ReferenceBuild.BUILD38
 
 
 def autodetect_input(path: Path) -> Optional[InputFormat]:

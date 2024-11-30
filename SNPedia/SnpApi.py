@@ -11,6 +11,7 @@ from data_types import Orientation
 from genotype import Genotype
 from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary, SnpediaSnpInfo
 from utils import get_default_data_dir
+from variant_chooser import VariantChooser
 
 app = Flask(__name__, template_folder='templates')
 
@@ -22,27 +23,9 @@ ORIENTATION_WARNING = (
 
 class UiListGenerator:
 
-    def __init__(self, parsed_snps_storage: ParsedSnpsStorage) -> None:
+    def __init__(self, parsed_snps_storage: ParsedSnpsStorage, variant_chooser: VariantChooser) -> None:
         self._parsed_snps_storage = parsed_snps_storage
-
-    def _chooseVariation(self, our_snp: Genotype, variations: Sequence[GenotypeSummary], stbl_orient: Optional[Orientation],
-                         debug_rsid: str) -> Optional[int]:
-        for i, variation in enumerate(variations):
-            if stbl_orient is Orientation.PLUS:
-                our_oriented_snp = our_snp
-            elif stbl_orient is Orientation.MINUS:
-                # TODO: Stabilized orientation doesn't always works (e.g., rs10993994 for GRCh38). Probably we should
-                #  look at reference genome used in SNPedia and in the analyzed genome.
-                our_oriented_snp = our_snp.complementary()
-            else:
-                return None
-
-            if our_oriented_snp.unordered_equal(variation.genotype_str):
-                return i
-
-        if len(variations) == 3:  # Usually contains all variants.
-            logging.warning(f"Couldn't find {our_snp} in {variations} ({debug_rsid}, {stbl_orient})")
-        return None
+        self._variant_chooser = variant_chooser
 
     def _compute_secondary_importance(self, snp_info: SnpediaSnpInfo, variation_idx: Optional[int]) -> int:
         # A tie-breaker, especially useful for entries with missing magnitude.
@@ -65,10 +48,9 @@ class UiListGenerator:
         for rsid, snp_info in snp_infos.items():
             variations_data = snp_info.genotype_summaries
             if personal_data.has_genotype(rsid):
-                variation_idx = self._chooseVariation(
-                    our_snp=personal_data.get_genotype(rsid),
-                    variations=variations_data,
-                    stbl_orient=snp_info.stabilized_orientation,
+                variation_idx = self._variant_chooser.find_variant(
+                    our_genotype=personal_data.get_genotype(rsid),
+                    snp_info=snp_info,
                     debug_rsid=rsid.lower(),
                 )
             else:
@@ -165,7 +147,10 @@ def main() -> None:
     personal_data = PersonalData.from_cache(data_dir)
     snpedia = SnpediaWithCache(data_dir=data_dir)
     parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
-    app.data_list = UiListGenerator(parsed_snps_storage=parsed_snps_storage).createList(personal_data=personal_data)  # type: ignore[attr-defined]
+    app.data_list = UiListGenerator(  # type: ignore[attr-defined]
+        parsed_snps_storage=parsed_snps_storage,
+        variant_chooser=VariantChooser(personal_genome_build=personal_data.get_reference_build()),
+    ).createList(personal_data=personal_data)
     app.run(debug=True)
 
 

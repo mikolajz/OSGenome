@@ -7,5 +7,6 @@ jsonify==0.5
 requests>=2.20.0
 vcfpy==0.13.8
 mypy==1.8.0
+pyliftover==0.4.1
 types-beautifulsoup4
 types-requests

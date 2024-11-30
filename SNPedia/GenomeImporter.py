@@ -2,46 +2,66 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, List, Optional
 
 import requests
 
-from data_types import Rsid
+from data_types import Rsid, ReferenceBuild
 from genotype import Genotype
 from inputs.formats import InputFormat, create_reader
 from utils import get_default_data_dir
 
 
 class PersonalData:
-    def __init__(self, snpdict: Mapping[Rsid, str]) -> None:
+
+    _SNPDICT_META_BUILD_KEY = Rsid("__meta__build__")
+
+    def __init__(self, snpdict: Mapping[Rsid, str], reference_build: ReferenceBuild) -> None:
         self.snpdict = snpdict
         self.snps = list(snpdict.keys())
+        self._reference_build = reference_build
 
     @staticmethod
     def from_input_file(filepath: Path, format_hint: Optional[str], approved: Approved) -> PersonalData:
         data_input = create_reader(filepath, format_hint)
         accepted_set = set(approved.accepted)
         snpdict = {rsid: genotype for rsid, genotype in data_input.read(accepted_set)}
+        build = data_input.get_reference_build()
 
-        return PersonalData(snpdict)
+        snpdict[PersonalData._SNPDICT_META_BUILD_KEY] = build.name
+        return PersonalData(snpdict, build)
 
     @staticmethod
     def from_cache(data_dir: Path) -> PersonalData:
         with PersonalData._get_file_path(data_dir).open("r") as jsonfile:
             snpdict = json.load(jsonfile)
 
-        return PersonalData(snpdict)
+        try:
+            build_name = snpdict[PersonalData._SNPDICT_META_BUILD_KEY]
+        except KeyError:
+            raise RuntimeError("Old version of cache file. Please rerun DataCrawler.py")
+        build = ReferenceBuild[build_name]
+
+        return PersonalData(snpdict, build)
+
+    def get_reference_build(self) -> ReferenceBuild:
+        return self._reference_build
 
     def export(self, data_dir: Path) -> None:
         with self._get_file_path(data_dir).open("w") as jsonfile:
             json.dump(self.snpdict, jsonfile)
 
     def has_genotype(self, rsid) -> bool:
+        if rsid == self._SNPDICT_META_BUILD_KEY:
+            return False
         genotype = self.snpdict.get(rsid)
         return genotype is not None and not genotype == "(-;-)"
 
     def get_genotype(self, rsid: Rsid) -> Genotype:
+        if rsid == self._SNPDICT_META_BUILD_KEY:
+            raise KeyError(rsid)
         return Genotype.from_string(self.snpdict[rsid])
 
     @staticmethod
