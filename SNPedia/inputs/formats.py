@@ -1,12 +1,15 @@
 import re
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Iterator, Tuple, Set, Optional
 
 import vcfpy
+from dataclasses_json import DataClassJsonMixin
 from typing_extensions import assert_never
 
+from chromosome import Chromosome, chromosome_from_short_form
 from data_types import Rsid, ReferenceBuild
 
 
@@ -15,10 +18,19 @@ class InputFormat(Enum):
     VCF = "vcf"
 
 
+@dataclass(frozen=True)
+class InputRecord:
+    rsid: Rsid
+    # We need the chromosome and position information to convert between reference builds.
+    chromosome: Chromosome
+    position: int
+    genotype: str  # We don't use Genotype but convert on the fly to make files load faster.
+
+
 class PersonalDataInput(ABC):
 
     @abstractmethod
-    def read(self, interesting: Set[Rsid]) -> Iterator[Tuple[Rsid, str]]:
+    def read(self, interesting: Set[Rsid]) -> Iterator[InputRecord]:
         pass
 
     @abstractmethod
@@ -31,7 +43,7 @@ class MicroarrayInput(PersonalDataInput):
     def __init__(self, path: Path) -> None:
         self._path = path
 
-    def read(self, interesting: Set[Rsid]) -> Iterator[Tuple[Rsid, str]]:
+    def read(self, interesting: Set[Rsid]) -> Iterator[InputRecord]:
         lines_count = 0
         interesting_count = 0
 
@@ -47,7 +59,12 @@ class MicroarrayInput(PersonalDataInput):
                     continue
 
                 interesting_count += 1
-                yield rsid, "(" + pd[3].rstrip()[0] + ";" + pd[3].rstrip()[-1] + ")"
+                yield InputRecord(
+                    rsid=rsid,
+                    chromosome=chromosome_from_short_form(pd[1]),
+                    position=int(pd[2]),
+                    genotype="(" + pd[3].rstrip()[0] + ";" + pd[3].rstrip()[-1] + ")",
+                )
 
         print(f"{interesting_count}/{lines_count} SNPs from personal data present also in SNPedia.")
 
@@ -61,7 +78,7 @@ class VcfInput(PersonalDataInput):
         self._path = path
         self._sample_index = sample_index
 
-    def read(self, interesting: Set[Rsid]) -> Iterator[Tuple[Rsid, str]]:
+    def read(self, interesting: Set[Rsid]) -> Iterator[InputRecord]:
         lines_count = 0
         interesting_count = 0
 
@@ -92,7 +109,13 @@ class VcfInput(PersonalDataInput):
                 if rsid not in interesting:
                     continue
                 interesting_count += 1
-                yield Rsid(rsid), "(" + ";".join(record.calls[self._sample_index].gt_bases) + ")"
+                assert isinstance(record.POS, int)
+                yield InputRecord(
+                    rsid=Rsid(rsid),
+                    chromosome=Chromosome(record.CHROM),
+                    position=record.POS,
+                    genotype="(" + ";".join(record.calls[self._sample_index].gt_bases) + ")",
+                )
 
         print(f"{interesting_count}/{lines_count} SNPs from personal data present also in SNPedia.")
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Mapping, List, Optional
 
@@ -10,15 +10,16 @@ import requests
 
 from data_types import Rsid, ReferenceBuild
 from genotype import Genotype
-from inputs.formats import InputFormat, create_reader
+from inputs.formats import InputFormat, create_reader, InputRecord
 from utils import get_default_data_dir
 
 
 class PersonalData:
 
     _SNPDICT_META_BUILD_KEY = Rsid("__meta__build__")
+    _FILE_VERSION = 2
 
-    def __init__(self, snpdict: Mapping[Rsid, str], reference_build: ReferenceBuild) -> None:
+    def __init__(self, snpdict: Mapping[Rsid, InputRecord], reference_build: ReferenceBuild) -> None:
         self.snpdict = snpdict
         self.snps = list(snpdict.keys())
         self._reference_build = reference_build
@@ -27,42 +28,44 @@ class PersonalData:
     def from_input_file(filepath: Path, format_hint: Optional[str], approved: Approved) -> PersonalData:
         data_input = create_reader(filepath, format_hint)
         accepted_set = set(approved.accepted)
-        snpdict = {rsid: genotype for rsid, genotype in data_input.read(accepted_set)}
+        snpdict = {input_record.rsid: input_record for input_record in data_input.read(accepted_set)}
         build = data_input.get_reference_build()
 
-        snpdict[PersonalData._SNPDICT_META_BUILD_KEY] = build.name
         return PersonalData(snpdict, build)
 
     @staticmethod
     def from_cache(data_dir: Path) -> PersonalData:
         with PersonalData._get_file_path(data_dir).open("r") as jsonfile:
-            snpdict = json.load(jsonfile)
+            file_contents = json.load(jsonfile)
 
-        try:
-            build_name = snpdict[PersonalData._SNPDICT_META_BUILD_KEY]
-        except KeyError:
-            raise RuntimeError("Old version of cache file. Please rerun DataCrawler.py")
+        if (version := file_contents.get("version")) != PersonalData._FILE_VERSION:
+            raise RuntimeError(f"Old version of cache file ({version}). Please rerun DataCrawler.py")
+
+        build_name = file_contents["build"]
         build = ReferenceBuild[build_name]
 
-        return PersonalData(snpdict, build)
+        return PersonalData(
+            {snp["rsid"]: InputRecord(**snp) for snp in file_contents["snps"]},
+            build,
+        )
 
     def get_reference_build(self) -> ReferenceBuild:
         return self._reference_build
 
     def export(self, data_dir: Path) -> None:
         with self._get_file_path(data_dir).open("w") as jsonfile:
-            json.dump(self.snpdict, jsonfile)
+            json.dump({
+                "version": self._FILE_VERSION,
+                "build": self._reference_build.name,
+                "snps": [asdict(value) for value in self.snpdict.values()]
+            }, jsonfile)
 
     def has_genotype(self, rsid) -> bool:
-        if rsid == self._SNPDICT_META_BUILD_KEY:
-            return False
-        genotype = self.snpdict.get(rsid)
-        return genotype is not None and not genotype == "(-;-)"
+        input_record = self.snpdict.get(rsid)
+        return input_record is not None and not input_record == "(-;-)"
 
     def get_genotype(self, rsid: Rsid) -> Genotype:
-        if rsid == self._SNPDICT_META_BUILD_KEY:
-            raise KeyError(rsid)
-        return Genotype.from_string(self.snpdict[rsid])
+        return Genotype.from_string(self.snpdict[rsid].genotype)
 
     @staticmethod
     def _get_file_path(data_dir: Path) -> Path:

@@ -85,12 +85,14 @@ def main():
     parser.add_argument('-n', '--count', help='Number of SNPs to download', type=int, default=100)
     args = parser.parse_args()
 
+    print('Loading cache files...')
     data_dir = get_default_data_dir()
     snpedia = SnpediaWithCache(data_dir=data_dir)
     parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
     df_crawl = SNPCrawl(snpedia=snpedia, parsed_snps_storage=parsed_snps_storage)
 
     if args.filepath:
+        print('Loading input file...')
         rsids_on_snpedia = Approved(data_dir=data_dir)
         personal = PersonalData.from_input_file(Path(args.filepath), args.format, rsids_on_snpedia)
         personal.export(data_dir)  # Prepare cache for the webapp.
