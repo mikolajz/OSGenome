@@ -21,7 +21,7 @@ def complement_string(input: DnaString) -> DnaString:
     return DnaString(input.translate(_COMPLEMENTS_TRANS))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Genotype:
     """
     "For DNA, the genotype is simply the specific information encoded at a given position in the genome."

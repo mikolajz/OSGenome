@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from pathlib import Path
 from typing import Mapping, List, Optional
 
 import requests
 
+from chromosome import Location
 from data_types import Rsid, ReferenceBuild
 from genotype import Genotype
-from inputs.formats import InputFormat, create_reader, InputRecord
+from inputs.formats import create_reader, InputRecord
 from utils import get_default_data_dir
 
 
@@ -66,6 +67,10 @@ class PersonalData:
 
     def get_genotype(self, rsid: Rsid) -> Genotype:
         return Genotype.from_string(self.snpdict[rsid].genotype)
+
+    def get_genotype_and_location(self, rsid: Rsid) -> tuple[Genotype, Location]:
+        input_record = self.snpdict[rsid]
+        return Genotype.from_string(input_record.genotype), input_record.get_location()
 
     @staticmethod
     def _get_file_path(data_dir: Path) -> Path:

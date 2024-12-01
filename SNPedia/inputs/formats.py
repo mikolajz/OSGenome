@@ -9,7 +9,7 @@ import vcfpy
 from dataclasses_json import DataClassJsonMixin
 from typing_extensions import assert_never
 
-from chromosome import Chromosome, chromosome_from_short_form
+from chromosome import Chromosome, chromosome_from_short_form, Location
 from data_types import Rsid, ReferenceBuild
 
 
@@ -25,6 +25,9 @@ class InputRecord:
     chromosome: Chromosome
     position: int
     genotype: str  # We don't use Genotype but convert on the fly to make files load faster.
+
+    def get_location(self) -> Location:
+        return Location(chromosome=self.chromosome, position=self.position)
 
 
 class PersonalDataInput(ABC):

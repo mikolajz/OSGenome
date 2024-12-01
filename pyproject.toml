@@ -3,6 +3,7 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = [
-    "vcfpy"
+    "vcfpy",
+    "pyliftover"
 ]
 ignore_missing_imports = true

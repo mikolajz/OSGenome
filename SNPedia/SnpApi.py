@@ -47,14 +47,18 @@ class UiListGenerator:
         snp_infos = self._parsed_snps_storage.snp_infos()
         for rsid, snp_info in snp_infos.items():
             variations_data = snp_info.genotype_summaries
-            if personal_data.has_genotype(rsid):
-                variation_idx = self._variant_chooser.find_variant(
-                    our_genotype=personal_data.get_genotype(rsid),
-                    snp_info=snp_info,
-                    debug_rsid=rsid.lower(),
-                )
-            else:
-                variation_idx = None
+            if not personal_data.has_genotype(rsid):
+                continue
+
+            genotype, location = personal_data.get_genotype_and_location(rsid)
+            orientation = self._variant_chooser.get_orientation_in_genome_reference_build(location, snp_info)
+
+            variation_idx = self._variant_chooser.find_variant(
+                our_genotype=genotype,
+                orientation=orientation,
+                variations=snp_info.genotype_summaries,
+                debug_rsid=rsid.lower(),
+            )
 
             variations = [" ".join([
                     str(variation.genotype_str),
@@ -76,8 +80,6 @@ class UiListGenerator:
             actual_importance = round(
                 (importance or 0.0) * 100 + self._compute_secondary_importance(snp_info, variation_idx)
             )
-
-            orientation = snp_info.stabilized_orientation
 
             if snp_info.orientation is not None and snp_info.orientation != snp_info.stabilized_orientation:
                 variations = [

@@ -10,3 +10,4 @@ mypy==1.8.0
 pyliftover==0.4.1
 types-beautifulsoup4
 types-requests
+typing-extensions==4.12.2
