@@ -24,7 +24,7 @@ class VariantChooser:
             location: Location,
             snp_info: SnpediaSnpInfo,
     ) -> Optional[Orientation]:
-        snpedia_build = ReferenceBuild.BUILD38  # TODO: take it from SNPedia instead of assuming Build 38.
+        snpedia_build = snp_info.get_reference_build()
         orientation = snp_info.orientation
         if orientation is None:
             return None
@@ -77,7 +77,6 @@ class VariantChooser:
         if lift_over is not None:
             return lift_over
 
-        print((from_build.value.pyliftover_name, to.value.pyliftover_name))  # DO_NOT_MERGE
         lift_over = LiftOver(from_build.value.pyliftover_name, to.value.pyliftover_name)
         self._liftover_cache[(from_build, to)] = lift_over
         return lift_over

@@ -17,6 +17,11 @@ class Orientation(Enum):
 @dataclass(frozen=True)
 class BuildInfo:
     snpedia_name: str
+    """
+    Name used by SNPedia
+
+    Sometimes SNPedia will be more specific (e.g., "GRCh38.p2") but then we ignore the suffix.
+    """
     pyliftover_name: str
 
 
