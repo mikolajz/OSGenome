@@ -55,6 +55,7 @@ class UiListGenerator:
 
             variation_idx = self._variant_chooser.find_variant(
                 our_genotype=genotype,
+                location=location,
                 orientation=orientation,
                 variations=snp_info.genotype_summaries,
                 debug_rsid=rsid.lower(),

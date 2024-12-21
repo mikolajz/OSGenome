@@ -4,7 +4,7 @@ from typing import Optional, Sequence
 from pyliftover import LiftOver
 from typing_extensions import assert_never
 
-from chromosome import Location
+from chromosome import Location, CHR_X
 from data_types import ReferenceBuild, Orientation
 from genotype import Genotype
 from snpedia import SnpediaSnpInfo, GenotypeSummary
@@ -49,6 +49,7 @@ class VariantChooser:
     def find_variant(
             self,
             our_genotype: Genotype,
+            location: Location,
             orientation: Optional[Orientation],
             variations: Sequence[GenotypeSummary],
             debug_rsid: str
@@ -62,13 +63,19 @@ class VariantChooser:
         else:
             assert_never(orientation)
 
+        if location.chromosome == CHR_X and len(our_genotype.alleles) == 1:
+            # SNPedia seems to store women version for chromosome X - with two alleles.
+            our_oriented_snp = Genotype(
+                alleles=[our_oriented_snp.alleles[0], our_oriented_snp.alleles[0]],
+            )
+
         for i, variation in enumerate(variations):
             if our_oriented_snp.unordered_equal(variation.genotype_str):
                 return i
 
         if len(variations) == 3:  # Usually contains all variants.
             logging.warning(
-                f"Suspicious, but necessarily wrong: couldn't find {our_genotype} in {variations} ({debug_rsid}, {orientation})"
+                f"Suspicious, but not necessarily wrong: couldn't find {our_genotype} in {variations} ({debug_rsid}, {orientation})"
             )
         return None
 

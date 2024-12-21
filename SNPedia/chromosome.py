@@ -5,9 +5,12 @@ from typing import NewType
 # the former.
 Chromosome = NewType('Chromosome', str)
 
+CHR_M = "chrM"
+CHR_X = "chrX"
+
 def chromosome_from_short_form(short_form: str) -> Chromosome:
     if short_form == "MT":
-        return Chromosome("chrM")
+        return Chromosome(CHR_M)
 
     return Chromosome("chr" + short_form)
 
