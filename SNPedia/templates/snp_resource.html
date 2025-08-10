@@ -8,13 +8,15 @@
         }
     </style>
     <title></title>
-    <link rel="stylesheet" href="css/kendo.common-material.min.css" />
-    <link rel="stylesheet" href="css/kendo.material.min.css" />
-    <link rel="stylesheet" href="css/kendo.material.mobile.min.css" />
 
-    <script src="js/jszip.min.js"></script>
-    <script src="js/jquery.min.js"></script>
-    <script src="js/kendo.all.min.js"></script>
+    <!-- Tabulator CSS -->
+    <link href="css/tabulator/tabulator.min.css" rel="stylesheet">
+
+    <!-- Tabulator JavaScript -->
+    <script type="text/javascript" src="js/tabulator/tabulator.min.js"></script>
+    <!-- XLSX Library for Excel Export -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style>
         html,
         body,
@@ -48,6 +50,28 @@
             .image { display: none; }
             .grid { float: none; width: 100%; }
         }
+
+        /* Custom button styling */
+        .custom-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 14px;
+        }
+
+        .custom-button:hover {
+            background-color: #0056b3;
+        }
+
+        .toolbar {
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
     </style>
 </head>
 
@@ -55,108 +79,119 @@
 
     <div class="image"></div>
     <div class="grid">
+        <div class="toolbar">
+            <button class="custom-button" onclick="exportToExcel()">Export to Excel</button>
+            <button class="custom-button" onclick="lookupOnSNPedia()">Lookup on SNPedia</button>
+        </div>
         <div id="grid"></div>
         <script>
 
-            function exportExcel() {
-                return '<a class="k-button" href="#" id="selectallelements" onclick="exportToExcel()">Export to Excel</a>';
-
-            }
+            let table;
 
             function exportToExcel() {
-                var grid1 = $("#grid").data("kendoGrid");
-                oldPageSize = grid1.dataSource.pageSize();
-                grid1.dataSource.pageSize(grid1.dataSource.data().length);
-                grid1.saveAsExcel()
-            };
-
-            $(window).resize(function () {
-                var gridElement = $("#grid"),
-                dataArea = gridElement.find(".k-grid-content"),
-                gridHeight = gridElement.innerHeight(),
-                otherElements = gridElement.children().not(".k-grid-content"),
-                otherElementsHeight = 0;
-                otherElements.each(function () {
-                    otherElementsHeight += $(this).outerHeight();
+                table.download("xlsx", "SNP_Report.xlsx", {
+                    sheetName: "SNP Data"
                 });
-                console.log('resizing to', gridHeight - otherElementsHeight)
-                dataArea.height(gridHeight - otherElementsHeight);
-            })
+            }
 
-            $(document).ready(function () {
+            function lookupOnSNPedia() {
+                const selectedRows = table.getSelectedRows();
+                if (selectedRows.length > 0) {
+                    const rsid = selectedRows[0].getData().Name;
+                    const link = `https://bots.snpedia.com/index.php/${rsid}`;
+                    window.open(link, '_blank');
+                } else {
+                    alert('Please select a row first');
+                }
+            }
 
-                $("#grid").kendoGrid({
-                    toolbar: [{
-                        name: 'exportExcel1',
-                        template: '#= exportExcel()#',
-                    },
-                    {
-                        name: 'lookupsnp',
-                        template: '#= snplookup()#'
-                    }
-                    ],
-                    excel: {
-                        fileName: "SNP Report.xlsx",
-                        proxyURL: "/excel",
-                        filterable: true
-                    },
+            // Initialize Tabulator
+            document.addEventListener('DOMContentLoaded', function() {
+                table = new Tabulator("#grid", {
+                    height: "calc(100vh - 80px)",
+                    layout: "fitColumns",
+                    pagination: true,
+                    paginationSize: 50,
+                    paginationSizeSelector: [25, 50, 100, 250],
+                    paginationButtonCount: 5,
+                    selectable: true,
+                    resizableColumns: true,
+                    movableColumns: true,
+                    filterMode: "local",
+                    sortMode: "local",
 
-                    dataSource: {
-                        dataType: "json",
-                        transport: {
-                            read: "/api/rsids"
+                    columns: [
+                        {
+                            title: "Name",
+                            field: "Name",
+                            width: 190,
+                            sorter: "string"
                         },
-                        sort: {
-                            field: "ActualImportance",
-                            dir: "desc"
+                        {
+                            title: "Short Description",
+                            field: "Description",
+                            width: 290,
+                            sorter: "string"
                         },
-                        schema: {
-                            data: function (response) {
-                                return response.results;
+                        {
+                            title: "Importance",
+                            field: "Importance",
+                            width: 200,
+                            sorter: function(a, b, aRow, bRow) {
+                                // Handle null ActualImportance values and convert to numbers
+                                const aVal = (aRow.getData().ActualImportance !== undefined && aRow.getData().ActualImportance !== null) ? Number(aRow.getData().ActualImportance) : 0;
+                                const bVal = (bRow.getData().ActualImportance !== undefined && bRow.getData().ActualImportance !== null) ? Number(bRow.getData().ActualImportance) : 0;
+
+                                return aVal - bVal; // Ascending order (lowest first) to match initialSort: "desc"
                             }
                         },
-                        pageSize: 50
-                    },
-                    columns: [
-                        { field: "Name", width: '190px', title: "Name" },
-                        { field: "Description", width: '290px', title: "Short Description" },
+
                         {
-                            field: "Importance",
-                            width: '200px',
-                            title: "Importance",
-                            sortable: { compare: function(a, b) { return a.ActualImportance - b.ActualImportance} },
+                            title: "Stabilized Orientation",
+                            field: "StabilizedOrientation",
+                            width: 200,
+                            sorter: "string"
                         },
-                        // { field: "ActualImportance", width: '200px', title: "SImportance" },
-                        { field: "StabilizedOrientation", width: '200px', title: "Stabilized Orientation", encoded: false },
-                        { field: "Genotype", width: '190px', title: "Individual Genotype" },
-                        { field: "Variations", width: '490px', title: "Genotype variations", encoded: false }
+                        {
+                            title: "Individual Genotype",
+                            field: "Genotype",
+                            width: 190,
+                            sorter: "string"
+                        },
+                        {
+                            title: "Genotype variations",
+                            field: "Variations",
+                            widthGrow: 1,
+                            sorter: "string",
+                            formatter: "html"
+                        }
                     ],
-                    height: '100%',
-                    filterable: true,
-                    sortable: true,
-                    pageable: {
-                        refresh: true,
-                        pageSizes: [25, 50, 100, 250],
-                        buttonCount: 5
+
+                    ajaxURL: "/api/rsids",
+                    ajaxResponse: function(url, params, response) {
+                        return response.results;
                     },
-                    selectable: "row",
-                    allowCopy: true,
-                    reorderable: true,
-                    resizable: true,
+
+                    // Set initial sort order by ActualImportance (descending)
+                    initialSort: [
+                        { column: "Importance", dir: "desc" }
+                    ],
+
+                    // Excel export configuration
+                    downloadConfig: {
+                        columnHeaders: true,
+                        rowGroups: false,
+                        columnCalcs: false,
+                        dataTree: false,
+                        cssClass: "tabulator-export"
+                    }
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', function() {
+                    table.redraw(true);
                 });
             });
-            function snplookup(e) {
-                return '<a class="k-button" href="#" id="lookupsnp" onclick="snpedia()">Lookup on SNPedia</a>';
-            };
-            function snpedia() {
-                var entityGrid = $("#grid").data("kendoGrid");
-                var rows = entityGrid.select();
-                var rsid = rows[0].cells[0].innerText
-
-                var html = "https://bots.snpedia.com/index.php/"
-                var link = html.concat(rsid)
-                window.open(link);
-            };
         </script>
     </div>
 

@@ -2,7 +2,7 @@
 An Open Source Web Application for Genetic Data (SNPs) using 23AndMe and Data Crawling Technologies
 
 ## Description
-OS Genome is an open source web application that allows users to gather the information they need to make sense of their own genome without needing to rely on outside services with unknown privacy policies. OS Genome's goal is to crawl various sources and give meaning to an individual's genome. It creates a Responsive Grid of the user's specific genome. This allows for everything from filtering to excel exporting. All of which using Flask, Kendo, and Python programming.
+OS Genome is an open source web application that allows users to gather the information they need to make sense of their own genome without needing to rely on outside services with unknown privacy policies. OS Genome's goal is to crawl various sources and give meaning to an individual's genome. It creates a Responsive Grid of the user's specific genome. This allows for everything from filtering to excel exporting. All of which using Flask, Tabulator, and Python programming.
 
 
 ## What are SNPs?
@@ -97,4 +97,4 @@ Access http://127.0.0.1:5000 (the ip address also known as localhost, it's all h
 There exists a library arv ([GitHub: cslarsen/arv - A fast 23andMe DNA parser and inferrer for Python](https://github.com/cslarsen/arv)) that allows for rule based matching of health and trait attributes using a hash table of the raw data of 23andMe. It is possible to alter the rsidDict.json to allow for automatically populating the rule matching conditions. I will be designing this functionality in a python script that will be able to be used to import the JSON as a dictionary that can be called within the rule matching. Please keep in mind its respective disclaimers before using the service. 
 
 ## Example
-![Example of Kendo Grid](https://github.com/mentatpsi/OSGenome/blob/master/images/OSGenome6.PNG)
+![Example of Tabulator Grid](https://github.com/mentatpsi/OSGenome/blob/master/images/OSGenome6.PNG)
