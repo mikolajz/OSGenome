@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def get_app_dir() -> Path:
-    return Path(__file__).parent
+    return Path(__file__).parent.parent
 
 
 def get_default_data_dir() -> Path:

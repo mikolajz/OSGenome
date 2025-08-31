@@ -4,9 +4,9 @@ from typing import Optional, Sequence
 from pyliftover import LiftOver
 from typing_extensions import assert_never
 
-from chromosome import Location, CHR_X
-from data_types import ReferenceBuild, Orientation
-from genotype import Genotype
+from base.chromosome import Location, CHR_X
+from base.data_types import ReferenceBuild, Orientation
+from base.genotype import Genotype
 from snpedia import SnpediaSnpInfo, GenotypeSummary
 
 

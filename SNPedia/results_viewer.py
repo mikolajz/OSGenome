@@ -6,12 +6,12 @@ from flask import Flask, render_template, request, send_file, send_from_director
 import base64
 import io
 
-from GenomeImporter import PersonalData
-from data_types import Orientation
-from genotype import Genotype
+from storage.personal_data import PersonalData
+from base.data_types import Orientation
+from base.genotype import Genotype
 from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary, SnpediaSnpInfo
-from utils import get_default_data_dir
-from variant_chooser import VariantChooser
+from base.utils import get_default_data_dir
+from base.variant_chooser import VariantChooser
 
 app = Flask(__name__, template_folder='templates')
 

@@ -9,8 +9,8 @@ import vcfpy
 from dataclasses_json import DataClassJsonMixin
 from typing_extensions import assert_never
 
-from chromosome import Chromosome, chromosome_from_short_form, Location
-from data_types import Rsid, ReferenceBuild
+from base.chromosome import Chromosome, chromosome_from_short_form, Location
+from base.data_types import Rsid, ReferenceBuild
 
 
 class InputFormat(Enum):

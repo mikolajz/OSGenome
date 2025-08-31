@@ -6,11 +6,12 @@ import requests
 import argparse
 import random
 
-from GenomeImporter import PersonalData, Approved
-from data_types import Rsid, Orientation
+from storage.personal_data import PersonalData
+from snpedia.index import SnpediaIndex
+from base.data_types import Rsid, Orientation
 from inputs.formats import InputFormat
 from snpedia import SnpediaWithCache, SnpPage, GenotypeSummary, ParsedSnpsStorage
-from utils import get_default_data_dir
+from base.utils import get_default_data_dir
 
 
 class SNPCrawl:
@@ -93,7 +94,7 @@ def main():
 
     if args.filepath:
         print('Loading input file...')
-        rsids_on_snpedia = Approved(data_dir=data_dir)
+        rsids_on_snpedia = SnpediaIndex(data_dir=data_dir)
         personal = PersonalData.from_input_file(Path(args.filepath), args.format, rsids_on_snpedia)
         personal.export(data_dir)  # Prepare cache for the webapp.
         rsids = find_relevant_rsids(personal, parsed_snps_storage, count=args.count)

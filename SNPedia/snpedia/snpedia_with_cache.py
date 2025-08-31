@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import json
+import logging
+import re
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import requests
+
+from base.data_types import Rsid
+
+RSID_REGEXP = re.compile(r'^[a-zA-Z][a-zA-Z0-9]*$')
+
+
+@dataclass(frozen=True)
+class _CacheMetadata:
+    http_response: int
+    last_modified: Optional[str]
+    timestamp: float
+
+
+class SnpediaWithCache:
+    def __init__(self, data_dir: Path) -> None:
+        self._snpedia_cache_dir = data_dir / "snpedia_cache"
+
+    def _data_and_meta_paths(self, rsid: Rsid) -> tuple[Path, Path]:
+        assert RSID_REGEXP.match(rsid)
+        return (
+            self._snpedia_cache_dir / f"{rsid}.html",
+            self._snpedia_cache_dir / f"{rsid}.meta",
+        )
+
+    def load_rsid(self, rsid: Rsid, session: requests.Session) -> Optional[bytes]:
+        if (cached_html := self.get_from_cache(rsid)) is not None:
+            return cached_html
+
+        url = f"https://bots.snpedia.com/index.php/{rsid}"
+
+        try:
+            response = session.get(url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"{url} was not found or contained no valid information ({e})")
+            return None
+
+        html = response.content
+
+        cache_metadata = _CacheMetadata(
+            http_response=response.status_code,  # May be useful for debugging.
+            last_modified=response.headers.get("Last-Modified"),
+            timestamp=time.time()
+        )
+
+        self._snpedia_cache_dir.mkdir(exist_ok=True)
+        data_path, meta_path = self._data_and_meta_paths(rsid)
+        data_path.write_bytes(html)
+        meta_path.write_text(json.dumps(cache_metadata.__dict__))
+
+        return html
+
+    def get_from_cache(self, rsid: Rsid) -> Optional[bytes]:
+        data_path, meta_path = self._data_and_meta_paths(rsid)
+        if not data_path.exists():
+            return None
+
+        html = data_path.read_bytes()
+        if not html:
+            return None
+
+        return html
