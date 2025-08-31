@@ -1,5 +1,11 @@
+import argparse
 import logging
+import os
 import re
+import socket
+import threading
+import time
+import webbrowser
 from typing import Optional, Sequence, Any
 
 from flask import Flask, render_template, request, send_file, send_from_directory, jsonify
@@ -14,6 +20,21 @@ from base.utils import get_default_data_dir
 from base.variant_chooser import VariantChooser
 
 app = Flask(__name__, template_folder='templates')
+
+
+def _wait_for_port(host: str, port: int) -> None:
+    """Wait for a port to become available indefinitely."""
+    while True:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.1)
+                result = sock.connect_ex((host, port))
+                if result == 0:
+                    return
+        except:
+            pass
+        time.sleep(0.1)
+
 
 WARNING_EMOJI = "\u26A0\uFE0F"
 ORIENTATION_WARNING = (
@@ -146,14 +167,29 @@ def get_types():
 
 
 def main() -> None:
-    data_dir = get_default_data_dir()
-    personal_data = PersonalData.from_cache(data_dir)
-    snpedia = SnpediaWithCache(data_dir=data_dir)
-    parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
-    app.data_list = UiListGenerator(  # type: ignore[attr-defined]
-        parsed_snps_storage=parsed_snps_storage,
-        variant_chooser=VariantChooser(personal_genome_build=personal_data.get_reference_build()),
-    ).createList(personal_data=personal_data)
+    parser = argparse.ArgumentParser(description='Launch the SNP results viewer web application')
+    parser.add_argument('--no-browser', action='store_true', help='Do not automatically open a web browser')
+    args = parser.parse_args()
+    
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        # Do the expensive initialization only when in the process being reloaded.
+        data_dir = get_default_data_dir()
+        personal_data = PersonalData.from_cache(data_dir)
+        snpedia = SnpediaWithCache(data_dir=data_dir)
+        parsed_snps_storage = ParsedSnpsStorage.load(data_dir=data_dir, snpedia=snpedia)
+        app.data_list = UiListGenerator(  # type: ignore[attr-defined]
+            parsed_snps_storage=parsed_snps_storage,
+            variant_chooser=VariantChooser(personal_genome_build=personal_data.get_reference_build()),
+        ).createList(personal_data=personal_data)
+    else:
+        # Launch browser if requested - only in main process, not in the reloader worker.
+        if not args.no_browser:
+            def __launch_browser_when_ready():
+                _wait_for_port('127.0.0.1', 5000)
+                webbrowser.open('http://127.0.0.1:5000')
+            
+            threading.Thread(target=__launch_browser_when_ready, daemon=True).start()
+    
     app.run(debug=True)
 
 
