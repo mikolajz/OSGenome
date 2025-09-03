@@ -178,7 +178,7 @@
     <!-- Disclaimer Panel -->
     <div id="disclaimer-panel" class="disclaimer-panel">
         <div class="disclaimer-content">
-            <div id="warning-content-placeholder"></div>
+            <div id="start-popup-placeholder"></div>
             <div class="disclaimer-actions">
                 <label class="checkbox-container">
                     <input type="checkbox" id="dont-show-again">
@@ -208,24 +208,24 @@
                     if (!data.show_disclaimer) {
                         showMainContent();
                     } else {
-                        loadWarningContent();
+                        loadStartPopup();
                     }
                 } catch (error) {
                     console.error('Error checking disclaimer preference:', error);
-                    loadWarningContent();
+                    loadStartPopup();
                 }
             }
 
-            async function loadWarningContent() {
+            async function loadStartPopup() {
                 try {
-                    const response = await fetch('/warning_content.html');
+                    const response = await fetch('/start_popup.html');
                     const content = await response.text();
-                    document.getElementById('warning-content-placeholder').innerHTML = content;
+                    document.getElementById('start-popup-placeholder').innerHTML = content;
                     hideAllContent();
                 } catch (error) {
-                    console.error('Error loading warning content:', error);
+                    console.error('Error loading start popup:', error);
                     // Fallback content
-                    document.getElementById('warning-content-placeholder').innerHTML = `
+                    document.getElementById('start-popup-placeholder').innerHTML = `
                         <h2>Please note</h2>
                         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
                     `;

@@ -179,9 +179,9 @@ def send_js(path):
 def send_css(path):
     return send_from_directory('css', path)
 
-@app.route('/warning_content.html')
-def send_warning_content():
-    return send_from_directory('templates', 'warning_content.html')
+@app.route('/start_popup.html')
+def send_start_popup():
+    return send_from_directory('templates', 'start_popup.html')
 
 
 @app.route("/api/rsids", methods=['GET'])
