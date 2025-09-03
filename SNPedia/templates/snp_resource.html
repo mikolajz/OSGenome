@@ -72,13 +72,125 @@
             background-color: #f8f9fa;
             border-bottom: 1px solid #dee2e6;
         }
+
+        /* Disclaimer Panel Styles */
+        .disclaimer-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .disclaimer-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .disclaimer-content h2 {
+            color: #333333;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .disclaimer-content p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .disclaimer-actions {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .checkbox-container {
+            display: block;
+            margin-bottom: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            height: 18px;
+            width: 18px;
+            background-color: #eee;
+            border: 2px solid #ccc;
+            border-radius: 3px;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .checkbox-container:hover input ~ .checkmark {
+            background-color: #ccc;
+        }
+
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+        }
+
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .checkbox-container .checkmark:after {
+            left: 5px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
     </style>
 </head>
 
 <body>
 
     <div class="image"></div>
-    <div class="grid">
+    
+    <!-- Disclaimer Panel -->
+    <div id="disclaimer-panel" class="disclaimer-panel">
+        <div class="disclaimer-content">
+            <div id="warning-content-placeholder"></div>
+            <div class="disclaimer-actions">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="dont-show-again">
+                    <span class="checkmark"></span>
+                    Don't show this again
+                </label>
+                <button class="custom-button" onclick="acknowledgeDisclaimer()">Got it, get me to the results</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid" id="main-content" style="display: none;">
         <div class="toolbar">
             <button class="custom-button" onclick="exportToExcel()">Export to Excel</button>
             <button class="custom-button" onclick="lookupOnSNPedia()">Lookup on SNPedia</button>
@@ -87,6 +199,80 @@
         <script>
 
             let table;
+
+            // Disclaimer functionality
+            async function checkDisclaimerPreference() {
+                try {
+                    const response = await fetch('/settings/show_disclaimer');
+                    const data = await response.json();
+                    if (!data.show_disclaimer) {
+                        showMainContent();
+                    } else {
+                        loadWarningContent();
+                    }
+                } catch (error) {
+                    console.error('Error checking disclaimer preference:', error);
+                    loadWarningContent();
+                }
+            }
+
+            async function loadWarningContent() {
+                try {
+                    const response = await fetch('/warning_content.html');
+                    const content = await response.text();
+                    document.getElementById('warning-content-placeholder').innerHTML = content;
+                    hideAllContent();
+                } catch (error) {
+                    console.error('Error loading warning content:', error);
+                    // Fallback content
+                    document.getElementById('warning-content-placeholder').innerHTML = `
+                        <h2>Please note</h2>
+                        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                    `;
+                    hideAllContent();
+                }
+            }
+
+            async function acknowledgeDisclaimer() {
+                const dontShowAgain = document.getElementById('dont-show-again').checked;
+                
+                try {
+                    const response = await fetch('/settings/show_disclaimer', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            show_disclaimer: !dontShowAgain
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        showMainContent();
+                    } else {
+                        console.error('Failed to save disclaimer preference');
+                    }
+                } catch (error) {
+                    console.error('Error saving disclaimer preference:', error);
+                    showMainContent();
+                }
+            }
+
+            function showMainContent() {
+                document.getElementById('disclaimer-panel').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                document.querySelector('.image').style.display = 'block';
+                // Initialize the table when showing main content
+                if (table) {
+                    table.redraw(true);
+                }
+            }
+
+            function hideAllContent() {
+                document.getElementById('disclaimer-panel').style.display = 'flex';
+                document.getElementById('main-content').style.display = 'none';
+                document.querySelector('.image').style.display = 'none';
+            }
 
             function exportToExcel() {
                 table.download("xlsx", "SNP_Report.xlsx", {
@@ -107,6 +293,10 @@
 
             // Initialize Tabulator
             document.addEventListener('DOMContentLoaded', function() {
+                // Check disclaimer preference first
+                checkDisclaimerPreference();
+                
+                // Initialize table (will be shown when disclaimer is acknowledged)
                 table = new Tabulator("#grid", {
                     height: "calc(100vh - 80px)",
                     layout: "fitColumns",

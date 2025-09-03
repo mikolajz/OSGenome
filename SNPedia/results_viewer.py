@@ -13,6 +13,7 @@ import base64
 import io
 
 from storage.personal_data import PersonalData
+from storage.settings import get_settings
 from base.data_types import Orientation
 from base.genotype import Genotype
 from snpedia import SnpediaWithCache, ParsedSnpsStorage, GenotypeSummary, SnpediaSnpInfo
@@ -128,6 +129,24 @@ def main_page():
     print(vars(request.form))
     return render_template('snp_resource.html')
 
+@app.route("/settings/show_disclaimer", methods=['GET', 'PUT'])
+def disclaimer_setting():
+    """REST endpoint for disclaimer preference - GET to read, PUT to update."""
+    settings = get_settings()
+    
+    if request.method == 'GET':
+        """Check if the user has chosen not to show the disclaimer."""
+        show_disclaimer = settings.get_show_disclaimer()
+        return jsonify({"show_disclaimer": show_disclaimer})
+    
+    elif request.method == 'PUT':
+        """Set the user's preference for showing the disclaimer."""
+        data = request.get_json()
+        if data and 'show_disclaimer' in data:
+            settings.set_show_disclaimer(bool(data['show_disclaimer']))
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Invalid data"}), 400
+
 
 @app.route("/excel", methods=['GET', 'POST'])
 def create_file():
@@ -159,6 +178,10 @@ def send_js(path):
 @app.route('/css/<path:path>')
 def send_css(path):
     return send_from_directory('css', path)
+
+@app.route('/warning_content.html')
+def send_warning_content():
+    return send_from_directory('templates', 'warning_content.html')
 
 
 @app.route("/api/rsids", methods=['GET'])
