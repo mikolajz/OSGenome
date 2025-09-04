@@ -213,7 +213,7 @@ def main() -> None:
             
             threading.Thread(target=__launch_browser_when_ready, daemon=True).start()
     
-    app.run(debug=True)
+    app.run(debug=True, host="127.0.0.1")
 
 
 if __name__ == "__main__":
