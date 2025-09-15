@@ -55,5 +55,6 @@ class SnpediaIndex:
         return accepted
 
     def export(self):
+        self._file_path.parent.mkdir(exist_ok=True, parents=True)
         with self._file_path.open("w") as jsonfile:
             json.dump(self.accepted, jsonfile)

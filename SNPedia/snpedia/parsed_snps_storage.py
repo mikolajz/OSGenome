@@ -31,6 +31,17 @@ class ParsedSnpsStorage:
     @staticmethod
     def load(data_dir: Path, snpedia: SnpediaWithCache) -> "ParsedSnpsStorage":
         file_path = data_dir / "rsidDict.json"
+
+        if not file_path.exists():
+            # Empty contents.
+            return ParsedSnpsStorage(
+                contents=_ParsedSnpsFileContents(
+                    version=SnpPage.DATA_FORMAT_VERSION,
+                    snps={},
+                ),
+                file_path=file_path,
+            )
+
         contents = json.loads(file_path.read_bytes())
 
         version = contents.get("version", 0)
